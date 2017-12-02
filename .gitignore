@@ -1,2 +1,8 @@
+# ignore virtual env
 venv
+
+# ignore tag files
 .vscode/tags
+
+## KSP related
+Ships/*/Auto-Saved Ship.craft

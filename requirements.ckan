@@ -1,0 +1,182 @@
+{
+	"kind": "metapackage",
+	"abstract": "A list of modules installed on the default KSP instance",
+	"name": "installed-default",
+	"license": "unknown",
+	"version": "2017.12.02.09.54.45",
+	"identifier": "installed-default",
+	"spec_version": "v1.6",
+	"recommends": [
+		{
+			"name": "AGExt"
+		},
+		{
+			"name": "AlternateResourcePanel"
+		},
+		{
+			"name": "MechJeb2"
+		},
+		{
+			"name": "KerbalAlarmClock"
+		},
+		{
+			"name": "RCSBuildAidCont"
+		},
+		{
+			"name": "RCSSounds"
+		},
+		{
+			"name": "RealisticAtmospheres"
+		},
+		{
+			"name": "RealPlume"
+		},
+		{
+			"name": "RealPlume-StockConfigs"
+		},
+		{
+			"name": "SAVE"
+		},
+		{
+			"name": "Scatterer-sunflare"
+		},
+		{
+			"name": "SmartParts"
+		},
+		{
+			"name": "StageRecovery"
+		},
+		{
+			"name": "KIS"
+		},
+		{
+			"name": "KAS"
+		},
+		{
+			"name": "TacFuelBalancer"
+		},
+		{
+			"name": "Trajectories"
+		},
+		{
+			"name": "TransferWindowPlanner"
+		},
+		{
+			"name": "TweakScale"
+		},
+		{
+			"name": "Toolbar"
+		},
+		{
+			"name": "TriggerAu-Flags"
+		},
+		{
+			"name": "EngineLighting"
+		},
+		{
+			"name": "ModularRocketSystem"
+		},
+		{
+			"name": "RealScaleBoosters"
+		},
+		{
+			"name": "KSP-AVC"
+		},
+		{
+			"name": "Kopernicus"
+		},
+		{
+			"name": "ModularFlightIntegrator"
+		},
+		{
+			"name": "SmokeScreen"
+		},
+		{
+			"name": "Scatterer"
+		},
+		{
+			"name": "Scatterer-config"
+		},
+		{
+			"name": "EasyVesselSwitch"
+		},
+		{
+			"name": "EnvironmentalVisualEnhancements"
+		},
+		{
+			"name": "CollisionFX"
+		},
+		{
+			"name": "CommunityTechTree"
+		},
+		{
+			"name": "DockingPortAlignmentIndicator"
+		},
+		{
+			"name": "EditorExtensionsRedux"
+		},
+		{
+			"name": "HyperEdit"
+		},
+		{
+			"name": "InfernalRobotics"
+		},
+		{
+			"name": "KRASH"
+		},
+		{
+			"name": "kRPC"
+		},
+		{
+			"name": "LandingHeight"
+		},
+		{
+			"name": "LaserDist"
+		},
+		{
+			"name": "RasterPropMonitor"
+		},
+		{
+			"name": "JanitorsCloset"
+		},
+		{
+			"name": "RasterPropMonitor-Core"
+		},
+		{
+			"name": "CrowdSourcedScience"
+		},
+		{
+			"name": "DistantObject"
+		},
+		{
+			"name": "DistantObject-default"
+		},
+		{
+			"name": "CapCom"
+		},
+		{
+			"name": "ContractRewardModifier"
+		},
+		{
+			"name": "ProgressParser"
+		},
+		{
+			"name": "ContractParser"
+		},
+		{
+			"name": "EnvironmentalVisualEnhancements-HR"
+		},
+		{
+			"name": "MechJebForAll"
+		},
+		{
+			"name": "KerbalEngineerRedux"
+		},
+		{
+			"name": "PreciseManeuver"
+		},
+		{
+			"name": "ChampagneBottleRedux"
+		}
+	]
+}
