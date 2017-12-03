@@ -5,6 +5,7 @@ import krpc
 TURN_START_ALTITUDE = 250
 TURN_END_ALTITUDE = 45000
 TARGET_ALTITUDE = 90000
+ASCENT_HEADING = 0
 
 def status_update(panel_text, message):
     status_line = "Status: {}".format(message)
@@ -14,6 +15,15 @@ def status_update(panel_text, message):
 def main():
     conn = krpc.connect(name='Launch into orbit')
     vessel = conn.space_center.active_vessel
+    obt_frame = vessel.orbit.body.non_rotating_reference_frame
+    srf_frame = vessel.orbit.body.reference_frame
+
+    # save initial PID parameters
+    time_to_peak = vessel.auto_pilot.time_to_peak
+    overshoot = vessel.auto_pilot.overshoot
+    pitch_pid_gains = vessel.auto_pilot.pitch_pid_gains
+    roll_pid_gains = vessel.auto_pilot.roll_pid_gains
+    yaw_pid_gains = vessel.auto_pilot.yaw_pid_gains
 
     canvas = conn.ui.stock_canvas
     screen_size = canvas.rect_transform.size
@@ -31,6 +41,7 @@ def main():
     ut = conn.add_stream(getattr, conn.space_center, 'ut')
     altitude = conn.add_stream(getattr, vessel.flight(), 'mean_altitude')
     apoapsis = conn.add_stream(getattr, vessel.orbit, 'apoapsis_altitude')
+    time_to_apoapsis = conn.add_stream(getattr, vessel.orbit, 'time_to_apoapsis')
     stage_2_resources = vessel.resources_in_decouple_stage(stage=2, cumulative=False)
     srb_fuel = conn.add_stream(stage_2_resources.amount, 'SolidFuel')
 
@@ -51,7 +62,7 @@ def main():
     # Activate the first stage
     vessel.control.activate_next_stage()
     vessel.auto_pilot.engage()
-    vessel.auto_pilot.target_pitch_and_heading(90, 90)
+    vessel.auto_pilot.target_pitch_and_heading(90, ASCENT_HEADING)
 
     # Main ascent loop
     srbs_separated = False
@@ -70,7 +81,7 @@ def main():
             new_turn_angle = frac * 90
             if abs(new_turn_angle - turn_angle) > 0.5:
                 turn_angle = new_turn_angle
-                vessel.auto_pilot.target_pitch_and_heading(90-turn_angle, 90)
+                vessel.auto_pilot.target_pitch_and_heading(90-turn_angle, ASCENT_HEADING)
 
         # Separate SRBs when finished
         if not srbs_separated:
@@ -92,6 +103,13 @@ def main():
         
         if srbs_separated and apoapsis_reached:
             break
+
+    # restore initial PID parameters
+    vessel.auto_pilot.time_to_peak = time_to_peak
+    vessel.auto_pilot.overshoot = overshoot
+    vessel.auto_pilot.pitch_pid_gains = pitch_pid_gains
+    vessel.auto_pilot.roll_pid_gains = roll_pid_gains
+    vessel.auto_pilot.yaw_pid_gains = yaw_pid_gains
 
     # Wait until out of atmosphere
     status_update(text_status, "Coasting out of atmosphere")
@@ -120,8 +138,8 @@ def main():
 
     # Orientate ship
     status_update(text_status, "Orientating ship for circularization burn")
-    vessel.auto_pilot.reference_frame = node.reference_frame
-    vessel.auto_pilot.target_direction = (0, 1, 0)
+    vessel.auto_pilot.reference_frame = obt_frame
+    vessel.auto_pilot.target_direction = node.direction(obt_frame)
     vessel.auto_pilot.wait()
 
     ## Note
@@ -138,7 +156,6 @@ def main():
 
     # Execute burn
     status_update(text_status, "Ready to execute burn")
-    time_to_apoapsis = conn.add_stream(getattr, vessel.orbit, 'time_to_apoapsis')
     while time_to_apoapsis() - (burn_time/2.0) > 0:
         pass
     status_update(text_status, "Executing burn")
