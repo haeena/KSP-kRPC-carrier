@@ -3,7 +3,7 @@
 	"abstract": "A list of modules installed on the default KSP instance",
 	"name": "installed-default",
 	"license": "unknown",
-	"version": "2017.12.02.09.54.45",
+	"version": "2017.12.04.03.05.56",
 	"identifier": "installed-default",
 	"spec_version": "v1.6",
 	"recommends": [
@@ -167,7 +167,7 @@
 			"name": "EnvironmentalVisualEnhancements-HR"
 		},
 		{
-			"name": "MechJebForAll"
+			"name": "LaunchNumbering"
 		},
 		{
 			"name": "KerbalEngineerRedux"
@@ -177,6 +177,9 @@
 		},
 		{
 			"name": "ChampagneBottleRedux"
+		},
+		{
+			"name": "xScience"
 		}
 	]
 }
