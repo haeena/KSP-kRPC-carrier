@@ -24,13 +24,13 @@ def vessel_current_stage(vessel) -> int:
 
     return reduce(lambda x, y: max(x, y.stage, y.decouple_stage), vessel.parts.all, 0)
 
-def lunch_into_orbit(conn: Client,
-                     target_alt: float, target_inc: float,
-                     auto_stage: bool = True, stop_stage: int = 0,
-                     pre_circulization_stage: int = None,
-                     post_circulization_stage: int = None,
-                     skip_circulization: bool = False
-                    ) -> None:
+def launch_into_orbit(conn: Client,
+                      target_alt: float, target_inc: float,
+                      auto_stage: bool = True, stop_stage: int = 0,
+                      pre_circulization_stage: int = None,
+                      post_circulization_stage: int = None,
+                      skip_circulization: bool = False
+                     ) -> None:
     """Lunch active vessel into orbit.
 
     Extended description of function.
@@ -101,7 +101,7 @@ def lunch_into_orbit(conn: Client,
     # Main ascent loop
     turn_angle = 0
 
-    raise_apoapsis_last_throttle = vessel.control.throttle 
+    raise_apoapsis_last_throttle = vessel.control.throttle
     raise_apoapsis_last_apoapsis = apoapsis()
     raise_apoapsis_last_ut = ut()
 
@@ -219,9 +219,10 @@ def lunch_into_orbit(conn: Client,
             vessel.control.activate_next_stage()
 
     status_update(text_status, "Launch complete")
-    
+
+    return
 
 if __name__ == "__main__":
     import krpc
-    conn = krpc.connect(name='Launch into orbit')
-    lunch_into_orbit(conn, 100000, 0)
+    connnection = krpc.connect(name='Launch into orbit')
+    launch_into_orbit(connnection, 100000, 0)
