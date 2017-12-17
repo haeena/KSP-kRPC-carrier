@@ -72,7 +72,7 @@ def main():
 
         # Decrease throttle when approaching target apoapsis
         if not apoapsis_reached:
-            if apoapsis_near and apoapsis() < TARGET_ALTITUDE:
+            if apoapsis_near and apoapsis() >= TARGET_ALTITUDE:
                 apoapsis_reached = True
                 status_update(text_status, "Target apoapsis reached")
                 vessel.control.throttle = 0.0
