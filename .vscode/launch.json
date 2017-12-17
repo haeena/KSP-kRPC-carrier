@@ -32,6 +32,25 @@
                 "WaitOnAbnormalExit",
                 "WaitOnNormalExit"
             ]
+        },  
+        {
+            "name": "Jupyter notebok",
+            "type": "python",
+            "request": "launch",
+            "stopOnEntry": true,
+            "pythonPath": "${config:python.pythonPath}",
+            "module": "jupyter",
+            "args": [
+                "notebook"
+            ],
+            "cwd": "${workspaceRoot}/",
+            "env": {},
+            "envFile": "${workspaceRoot}/.env",
+            "debugOptions": [
+                "WaitOnAbnormalExit",
+                "WaitOnNormalExit",
+                "RedirectOutput"                
+            ]
         }
     ]
 }
