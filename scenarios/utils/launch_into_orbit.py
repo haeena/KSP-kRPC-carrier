@@ -2,13 +2,7 @@ import time
 import math
 from functools import reduce
 from krpc.client import Client
-
-## TODO: separate this somewhere else
-def status_update(panel_text, message):
-    status_line = "Status: {}".format(message)
-    print(status_line)
-    panel_text.content = status_line
-
+from status_dialog import StatusDialog
 
 def vessel_current_stage(vessel) -> int:
     """Return current stage
@@ -61,19 +55,8 @@ def launch_into_orbit(conn: Client,
     TURN_START_ALTITUDE = 250
     TURN_END_ALTITUDE = 45000
 
-    # setup canvas
-    ## TODO: move this somewhere else
-    canvas = conn.ui.stock_canvas
-    screen_size = canvas.rect_transform.size
-    panel = canvas.add_panel()
-    rect = panel.rect_transform
-    rect.size = (400, 50)
-    rect.position = (110-(screen_size[0]/2), 0)
-
-    text_status = panel.add_text("")
-    text_status.rect_transform.position = (0, 0)
-    text_status.color = (1, 1, 1)
-    text_status.size = 12
+    # Set up dialog
+    dialog = StatusDialog(conn)
 
     # Set up streams for telemetry
     ut = conn.add_stream(getattr, conn.space_center, 'ut')
@@ -114,12 +97,12 @@ def launch_into_orbit(conn: Client,
             max_resource = max(map(lambda r: resources_of_stage.amount(r), resource_types_for_stage))
 
             if max_resource <= 0.1:
-                status_update(text_status, "Staging: stage {}".format(current_stage - 1))
+                dialog.status_update("Staging: stage {}".format(current_stage - 1))
                 vessel.control.activate_next_stage()
 
         # Gravity turn
         if altitude() > TURN_START_ALTITUDE and altitude() < TURN_END_ALTITUDE:
-            status_update(text_status, "Gravity turn")
+            dialog.status_update("Gravity turn")
 
             frac = ((altitude() - TURN_START_ALTITUDE) /
                     (TURN_END_ALTITUDE - TURN_START_ALTITUDE))
@@ -132,7 +115,7 @@ def launch_into_orbit(conn: Client,
         if apoapsis() <= target_alt*0.9:
             vessel.control.throttle = 1
         elif apoapsis() < target_alt:
-            status_update(text_status, "Approaching target apoapsis")
+            dialog.status_update("Approaching target apoapsis")
             try:
                 instant_rate_per_throttle = (apoapsis() - raise_apoapsis_last_apoapsis) / ((ut() - raise_apoapsis_last_ut) * raise_apoapsis_last_throttle)
                 instant_rate_per_throttle = max(1.0, instant_rate_per_throttle)
@@ -143,7 +126,7 @@ def launch_into_orbit(conn: Client,
         else:
             vessel.control.throttle = 0
             if altitude() < atomosphere_depth:
-                status_update(text_status, "Coasting out of atmosphere")
+                dialog.status_update("Coasting out of atmosphere")
             else:
                 break
 
@@ -161,7 +144,7 @@ def launch_into_orbit(conn: Client,
         return
 
     # Plan circularization burn (using vis-viva equation)
-    status_update(text_status, "Planning circularization burn")
+    dialog.status_update("Planning circularization burn")
     mu = vessel.orbit.body.gravitational_parameter
     r = vessel.orbit.apoapsis
     a1 = vessel.orbit.semi_major_axis
@@ -181,25 +164,25 @@ def launch_into_orbit(conn: Client,
     burn_time = (m0 - m1) / flow_rate
 
     # Orientate ship
-    status_update(text_status, "Orientating ship for circularization burn")
+    dialog.status_update("Orientating ship for circularization burn")
     vessel.auto_pilot.reference_frame = node.reference_frame
     vessel.auto_pilot.target_direction = (0, 0, 0)
     vessel.auto_pilot.wait()
 
     # Wait until burn
-    status_update(text_status, "Waiting until circularization burn")
+    dialog.status_update("Waiting until circularization burn")
     burn_ut = ut() + vessel.orbit.time_to_apoapsis - (burn_time/2.0)
     lead_time = 5
     conn.space_center.warp_to(burn_ut - lead_time)
 
     # Execute burn
-    status_update(text_status, "Ready to execute burn")
+    dialog.status_update("Ready to execute burn")
     while time_to_apoapsis() - (burn_time/2.0) > 0:
         pass
-    status_update(text_status, "Executing burn")
+    dialog.status_update("Executing burn")
     vessel.control.throttle = 1.0
     time.sleep(burn_time - 0.1)
-    status_update(text_status, "Fine tuning")
+    dialog.status_update("Fine tuning")
     vessel.control.throttle = 0.05
 
     remaining_delta_v = conn.add_stream(getattr, node, "remaining_delta_v")
@@ -212,13 +195,14 @@ def launch_into_orbit(conn: Client,
             min_delta_v = remaining_delta_v()
         pass
     vessel.control.throttle = 0.0
+    remaining_delta_v.remove()
     node.remove()
 
     if post_circulization_stage:
         while vessel_current_stage(vessel) <= post_circulization_stage:
             vessel.control.activate_next_stage()
 
-    status_update(text_status, "Launch complete")
+    dialog.status_update("Launch complete")
 
     return
 
