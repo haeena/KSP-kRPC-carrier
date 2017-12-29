@@ -2,7 +2,9 @@ import time
 import math
 from functools import reduce
 from krpc.client import Client
+
 from status_dialog import StatusDialog
+from execute_node import execute_next_node
 
 def vessel_current_stage(vessel) -> int:
     """Return current stage
@@ -155,48 +157,7 @@ def launch_into_orbit(conn: Client,
     node = vessel.control.add_node(
         ut() + vessel.orbit.time_to_apoapsis, prograde=delta_v)
 
-    # Calculate burn time (using rocket equation)
-    F = vessel.available_thrust
-    Isp = vessel.specific_impulse * 9.82
-    m0 = vessel.mass
-    m1 = m0 / math.exp(delta_v/Isp)
-    flow_rate = F / Isp
-    burn_time = (m0 - m1) / flow_rate
-
-    # Orientate ship
-    dialog.status_update("Orientating ship for circularization burn")
-    vessel.auto_pilot.reference_frame = node.reference_frame
-    vessel.auto_pilot.target_direction = (0, 0, 0)
-    vessel.auto_pilot.wait()
-
-    # Wait until burn
-    dialog.status_update("Waiting until circularization burn")
-    burn_ut = ut() + vessel.orbit.time_to_apoapsis - (burn_time/2.0)
-    lead_time = 5
-    conn.space_center.warp_to(burn_ut - lead_time)
-
-    # Execute burn
-    dialog.status_update("Ready to execute burn")
-    while time_to_apoapsis() - (burn_time/2.0) > 0:
-        pass
-    dialog.status_update("Executing burn")
-    vessel.control.throttle = 1.0
-    time.sleep(burn_time - 0.1)
-    dialog.status_update("Fine tuning")
-    vessel.control.throttle = 0.05
-
-    remaining_delta_v = conn.add_stream(getattr, node, "remaining_delta_v")
-    min_delta_v = remaining_delta_v()
-    point_passed = False
-    while remaining_delta_v() > 0.1 and not point_passed:
-        if min_delta_v < remaining_delta_v():
-            point_passed = True
-        else:
-            min_delta_v = remaining_delta_v()
-        pass
-    vessel.control.throttle = 0.0
-    remaining_delta_v.remove()
-    node.remove()
+    execute_next_node(conn)
 
     if post_circulization_stage:
         while vessel_current_stage(vessel) <= post_circulization_stage:
