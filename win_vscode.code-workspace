@@ -1,0 +1,6 @@
+{
+	"folders": [],
+	"settings": {
+		"python.pythonPath": "${workspaceRoot}\\venv\\Scripts\\python.exe"
+	}
+}
