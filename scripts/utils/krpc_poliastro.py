@@ -8,8 +8,8 @@ from astropy.constants import Constant as AstropyConstant
 from poliastro.bodies import Body as PoliastroBody
 from poliastro.maneuver import Maneuver
 
-KRPC_BODIES
-POLIASTRO_BODIES
+KRPC_BODIES = None
+POLIASTRO_BODIES = None
 
 def _convert_body_krpc_to_poliastro(poliastro_bodies: dict, parent: PoliastroBody, krpc_body: Body):
     name = krpc_body.name
