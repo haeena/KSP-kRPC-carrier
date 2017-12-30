@@ -29,6 +29,7 @@ def execute_next_node(conn: Client) -> None:
     vessel.auto_pilot.engage()
     vessel.auto_pilot.reference_frame = node.reference_frame
     vessel.auto_pilot.target_direction = (0, 0, 0)
+    time.sleep(1)
     vessel.auto_pilot.wait()
 
     # Wait until burn
@@ -43,14 +44,17 @@ def execute_next_node(conn: Client) -> None:
         pass
     dialog.status_update("Executing burn")
     vessel.control.throttle = 1.0
-    time.sleep(burn_time - 0.1)
-    dialog.status_update("Fine tuning")
-    vessel.control.throttle = 0.05
 
     remaining_delta_v = conn.add_stream(getattr, node, "remaining_delta_v")
     min_delta_v = remaining_delta_v()
+
     point_passed = False
     while remaining_delta_v() > 0.1 and not point_passed:
+        a100 = vessel.available_thrust / vessel.mass
+        throttle = max(0.05, min(1.0, remaining_delta_v() / a100))
+        if throttle < 1.0:
+            dialog.status_update("Fine tuning")
+        vessel.control.throttle = throttle
         if min_delta_v < remaining_delta_v():
             point_passed = True
         else:
