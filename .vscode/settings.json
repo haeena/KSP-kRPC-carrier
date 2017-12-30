@@ -1,4 +1,0 @@
-{
-    "python.pythonPath": "${workspaceRoot}/venv/scripts/python.exe"
-    "_python.pythonPath": "${workspaceRoot}/venv/bin/python"
-}
