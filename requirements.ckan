@@ -3,7 +3,7 @@
 	"abstract": "A list of modules installed on the default KSP instance",
 	"name": "installed-default",
 	"license": "unknown",
-	"version": "2017.12.04.03.05.56",
+	"version": "2017.12.30.10.00.35",
 	"identifier": "installed-default",
 	"spec_version": "v1.6",
 	"recommends": [
@@ -47,7 +47,7 @@
 			"name": "StageRecovery"
 		},
 		{
-			"name": "KIS"
+			"name": "kRPC"
 		},
 		{
 			"name": "KAS"
@@ -65,7 +65,7 @@
 			"name": "TweakScale"
 		},
 		{
-			"name": "Toolbar"
+			"name": "CrowdSourcedScience"
 		},
 		{
 			"name": "TriggerAu-Flags"
@@ -116,7 +116,7 @@
 			"name": "EditorExtensionsRedux"
 		},
 		{
-			"name": "HyperEdit"
+			"name": "Toolbar"
 		},
 		{
 			"name": "InfernalRobotics"
@@ -125,7 +125,7 @@
 			"name": "KRASH"
 		},
 		{
-			"name": "kRPC"
+			"name": "KIS"
 		},
 		{
 			"name": "LandingHeight"
@@ -143,7 +143,7 @@
 			"name": "RasterPropMonitor-Core"
 		},
 		{
-			"name": "CrowdSourcedScience"
+			"name": "HyperEdit"
 		},
 		{
 			"name": "DistantObject"
@@ -179,7 +179,13 @@
 			"name": "ChampagneBottleRedux"
 		},
 		{
-			"name": "xScience"
+			"name": "AutomatedScienceSampler"
+		},
+		{
+			"name": "KerboKatzUtilities"
+		},
+		{
+			"name": "BetterBurnTime"
 		}
 	]
 }
