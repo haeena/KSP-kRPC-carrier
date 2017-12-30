@@ -14,13 +14,13 @@ ckan.exe install -c requirements.ckan
 
 ## setup kPRC venv and install requirements
 ```
-# on Windows
+# on Windows (PowerShell)
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# on OS X
+# on macOS
 python -m venv venv
 source vev/bin/activate
 pip install --upgrade pip
@@ -29,9 +29,9 @@ pip install -r requirements.txt
 
 ## Manage your savedata under git
 ```
-ln -s saves/${SAVE_NAME} "${PATH_TO_KSP_SAVE}\${SAVE_NAME}"
-```
+# on Windows (PowerShell)
+New-Item -ItemType Junction -Value saves/${SAVE_NAME} -Path "${PATH_TO_KSP_SAVE}/${SAVE_NAME}"
 
-```
-New-Item -ItemType Junction -Path saves/${SAVE_NAME} -Value "${PATH_TO_KSP_SAVE}/${SAVE_NAME}"
+# on macOS
+ln -s $(pwd)/saves/${SAVE_NAME} "${PATH_TO_KSP_SAVE}\${SAVE_NAME}"
 ```
