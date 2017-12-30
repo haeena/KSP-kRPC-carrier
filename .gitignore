@@ -103,5 +103,8 @@ ENV/
 # vscode tag files
 .vscode/tags
 
-## KSP related
-Ships/*/Auto-Saved Ship.craft
+# KSP related
+## auto saved craft 
+Auto-Saved Ship.craft
+## auto backup save file
+persistent (*).sfs
