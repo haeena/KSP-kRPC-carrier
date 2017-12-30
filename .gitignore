@@ -103,6 +103,9 @@ ENV/
 # vscode tag files
 .vscode/tags
 
+# macOS store
+.DS_Store
+
 # KSP related
 ## auto saved craft 
 Auto-Saved Ship.craft
