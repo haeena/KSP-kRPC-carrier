@@ -22,6 +22,7 @@ def vessel_current_stage(vessel) -> int:
 
 def launch_into_orbit(conn: Client,
                       target_alt: float, target_inc: float,
+                      auto_launch: bool = True,
                       auto_stage: bool = True, stop_stage: int = 0,
                       pre_circulization_stage: int = None,
                       post_circulization_stage: int = None,
@@ -35,6 +36,7 @@ def launch_into_orbit(conn: Client,
         conn: kRPC connection
         target_alt: target altitude in m
         target_inc: target inclination in degree
+        auto_launch: when everything set, launch automatically
         auto_stage: staging when no fuel left on the stage
         stop_stage: stop staging on the stage
         pre_circulization_stage: stage to this before circulization
@@ -73,6 +75,16 @@ def launch_into_orbit(conn: Client,
     vessel.control.sas = True
     vessel.control.rcs = False
     vessel.control.throttle = 0
+
+    if vessel.situation == "pre_launch":
+        if auto_launch:
+            for i in range(-5, -1):
+                dialog.status_update("T={} ...".format(i))
+                time.sleep(1)
+            dialog.status_update("Lift off!!"))
+            vessel.control.activate_next_stage()
+        else:
+            dialog.status_update("Ready to launch")
 
     # Main ascent loop
 
@@ -156,6 +168,8 @@ def launch_into_orbit(conn: Client,
     delta_v = v2 - v1
     node = vessel.control.add_node(
         ut() + vessel.orbit.time_to_apoapsis, prograde=delta_v)
+
+    vessel.auto_pilot.disengage()
 
     execute_next_node(conn)
 
