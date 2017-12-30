@@ -1,4 +1,3 @@
-import time
 import math
 
 # TODO: type hint for kRPC remote objects may need to be separated
@@ -13,6 +12,13 @@ from execute_node import execute_next_node
 
 import numpy as np
 
+from astropy import units as AstropyUnit
+from astropy.time import Time as AstropyTime
+from astropy.constants import Constant as AstropyConstant
+from poliastro.bodies import Body as PoliastroBody
+from poliastro.twobody import Orbit as PoliastroOrbit
+from poliastro.maneuver import Maneuver
+
 def unit_vector(vector):
     return vector / np.linalg.norm(vector)
 
@@ -26,7 +32,31 @@ def angle_between(v1, v2):
     v2_u = unit_vector(v2)
     return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
-def hohmann_transfer_to_target_alt_at_ut(vessel: Vessel, target: Union[Vessel, Body], ct: float, ut: float) -> ((float, float), float, float):
+def _convert_body_krpc_to_poliastro(poliastro_bodies: dict, parent: PoliastroBody, krpc_body: Body):
+    name = krpc_body.name
+    GM = AstropyConstant('GM_k{}'.format(name), 'Kerbal {} gravitational constant'.format(name),
+                  krpc_body.gravitational_parameter, 'm3 / (s2)', 0,
+                  'kRPC space_center.bodies["{}"].gravitational_parameter'.format(name), system='si')
+    R = AstropyConstant('R_k{}'.format(name), 'Kerbal {} equatorial radius'.format(name),
+                      krpc_body.equatorial_radius, 'm', 0,
+                     'kRPC space_center.bodies["{}"].equatorial_radius'.format(name), system='si')
+    poliastro_body = PoliastroBody(parent, GM, "", name, R)
+    poliastro_bodies[name] = poliastro_body
+    for satelite in krpc_body.satellites:
+        _convert_body_krpc_to_poliastro(poliastro_bodies, poliastro_body, satelite)
+    return
+
+def krpc_poliastro_bodies(conn: Client) -> (dict, dict):
+    poliastro_bodies = {}
+    krpc_bodies = conn.space_center.bodies
+
+    krpc_Sun = krpc_bodies["Sun"]
+    _convert_body_krpc_to_poliastro(poliastro_bodies, None, krpc_Sun)
+    return (krpc_bodies, poliastro_bodies)
+
+def hohmann_transfer_to_target_at_ut(poliastro_bodies: dict, vessel: Vessel, target: Union[Vessel, Body],
+                                     ct: float, ut: float, trans_time: float = 0
+                                    ) -> (float, float, float, float):
     """calculate (dv_a, dv_b), trans_time and sort of mean anomaly phase angle of hohmann transfer at time t
 
     calculate (dv_a, dv_b), trans_time and sort of mean anomaly phase angle of hohmann transfer at time t
@@ -36,44 +66,49 @@ def hohmann_transfer_to_target_alt_at_ut(vessel: Vessel, target: Union[Vessel, B
         target: target vessel or celesital body
         ct: currrent time
         ut: time to burn
+        trans_time: appox transfer time
 
     Retruns:
-        ((dv_a, dv_b), trans_time, phase_angle)
+        (dv_a, dv_b, trans_time, phase_angle)
         dv_a: deltaV (m/s) for first burn
         dv_b: deltaV (m/s) for second burn
         trans_time: time (s) for transfer
         phase_angle: phase_angle between vessel and target at t + trans_time
     """ 
-    ## TODO: use astropy instead of RPC?
-    # radius_at calls RPC, so it takes lot of times...
-    
     # assuming vessel and target are both in circular orbit of same body, in same plane
-    r_i = vessel.orbit.radius_at(ut)
-    v_i = vessel.orbit.orbital_speed_at(ut)
-    r_f = target.orbit.radius_at(ut)
-    k = vessel.orbit.body.gravitational_parameter
-    R = r_f / r_i
-    dv_a = ((math.sqrt(2 * R / (1 + R)) - 1) * v_i)
-    dv_b = (1 - math.sqrt(2 / (1 + R))) / math.sqrt(R) * v_i
-    t_trans = (math.pi * math.sqrt((r_i * (1 + R) / 2) ** 3 / k))
+    attractor = vessel.orbit.body
+    reference_frame = attractor.non_rotating_reference_frame
+
+    time_to_ut = ut - ct
     
-    ref_frame = vessel.orbit.body.non_rotating_reference_frame
-    vp = vessel.orbit.position_at(ct + vessel.orbit.time_to_periapsis, ref_frame)
-    vp_1 = vessel.orbit.position_at(1 + ct + vessel.orbit.time_to_periapsis, ref_frame)
-    vv = np.subtract(vp_1, vp)
-    tp = target.orbit.position_at(ct + target.orbit.time_to_periapsis, ref_frame)
-    vt_angle = math.copysign(angle_between(vp, tp), dot(vp, tp))
+    r_target = target.position(reference_frame) * AstropyUnit.m
+    v_target = target.velocity(reference_frame) * AstropyUnit.m / AstropyUnit.s
+    ss_target = PoliastroOrbit.from_vectors(poliastro_bodies[attractor.name], r_target, v_target)
 
-    vessel_ta_at_t_trans = vessel.orbit.true_anomaly_at_ut(ut) + math.pi
-    vessel_ta_at_ct =  vessel.orbit.true_anomaly_at_ut(ct)
-    vessel_ta_trans = (vessel_ta_at_t_trans - vessel_ta_at_ct) % (2 * math.pi) - math.pi
-    target_ta_at_t_trans = target.orbit.true_anomaly_at_ut(ut + t_trans)
-    target_ta_at_ct =  target.orbit.true_anomaly_at_ut(ct)
-    target_ta_trans = (target_ta_at_t_trans - target_ta_at_ct) % (2 * math.pi)
+    r_v_ct = vessel.position(reference_frame) * AstropyUnit.m
+    v_v_ct = vessel.velocity(reference_frame) * AstropyUnit.m / AstropyUnit.s
+    ss_v_ct = PoliastroOrbit.from_vectors(poliastro_bodies[attractor.name], r_v_ct, v_v_ct)
 
-    phase_angle = (target_ta_trans + vessel_ta_trans + vt_angle) % (2 * math.pi) - math.pi
+    ss_i = ss_v_ct.propagate(time_to_ut * AstropyUnit.s)
+    r_f = target.orbit.radius_at(ut + trans_time) * AstropyUnit.m
 
-    return ((dv_a, dv_b), t_trans, phase_angle)
+    hoh = Maneuver.hohmann(ss_i, r_f)
+    
+    trans_time = hoh.get_total_time().value
+    ss_a, ss_f = ss_i.apply_maneuver(hoh, intermediate=True)
+    
+    dv_a = np.linalg.norm(hoh[0][1])
+    dv_b = np.linalg.norm(hoh[1][1])
+
+    r_vessel_0 = ss_target.propagate(hoh.get_total_time()).sample(1).xyz.value.take([0,1,2])
+    r_target_0 = ss_a.propagate(hoh.get_total_time()).sample(1).xyz.value.take([0,1,2])
+    r_target_1 = ss_a.propagate(hoh.get_total_time() + 1 * AstropyUnit.s).sample(1).xyz.value.take([0,1,2])
+    v_target_0 = np.subtract(r_target_1, r_target_0)
+    v_vessel_target_0 = np.subtract(r_vessel_0, r_target_0)
+
+    phase_angle = math.copysign(angle_between(r_vessel_0, r_target_0), dot(v_vessel_target_0, v_target_0))
+
+    return (dv_a, dv_b, trans_time, phase_angle)
 
 def hohmann_transfer_to_target(conn: Client) -> None:
     """send active vessel into hohmann transfer orbit to the target.
@@ -88,6 +123,8 @@ def hohmann_transfer_to_target(conn: Client) -> None:
 
     """
     vessel = conn.space_center.active_vessel
+
+    krpc_bodies, poliastro_bodies = krpc_poliastro_bodies(conn)
 
     # setup stream
     ut = conn.add_stream(getattr, conn.space_center, 'ut')
@@ -119,49 +156,44 @@ def hohmann_transfer_to_target(conn: Client) -> None:
     num_divisions = 30
     dt = (max_time - min_time) / num_divisions
 
-    _, _, pa = hohmann_transfer_to_target_alt_at_ut(vessel, target, ut(), min_time)
+    dv_a, dv_b, trans_time, pa = hohmann_transfer_to_target_at_ut(poliastro_bodies, vessel, target, ut(), min_time)
     last_pa = pa
     min_abs_pa = abs(pa)
     last_pa_t_sign = None
 
     for i in range(1, num_divisions):
         t = min_time + dt * i
-        _, _, pa = hohmann_transfer_to_target_alt_at_ut(vessel, target, ut(), t)
+        dv_a, dv_b, trans_time, pa = hohmann_transfer_to_target_at_ut(poliastro_bodies, vessel, target, ut(), t, trans_time)
         pa_t_sign = math.copysign(1, pa - last_pa)
         last_pa = pa
 
         abs_pa = abs(pa)
+
+        if abs_pa < math.pi / 2 and last_pa_t_sign and last_pa_t_sign != pa_t_sign:
+            pa_t_sign = last_pa_t_sign
+            break
+
         if abs_pa < min_abs_pa:
             min_abs_pa = abs_pa
 
-            if math.copysign(1, pa) == pa_t_sign:
-                min_time = t - dt
-                max_time = t
-            else:
-                min_time = t
-                max_time = t + dt
-        
-        if last_pa_t_sign:
-            if last_pa_t_sign != pa_t_sign:
-                break
+            min_time = t - dt
+            max_time = t + dt
+
         last_pa_t_sign = pa_t_sign
 
     while (max_time - min_time > 0.01):
         t = (max_time + min_time) / 2
-        dvs, _, pa = hohmann_transfer_to_target_alt_at_ut(vessel, target, ut(), t)
-
-        # t = 58950
-        # TMP
-        node = vessel.control.add_node(t, prograde=dvs[0])
-        node.remove()
+        dv_a, dv_b, trans_time, pa = hohmann_transfer_to_target_at_ut(poliastro_bodies, vessel, target, ut(), t, trans_time)
 
         if math.copysign(1, pa) == pa_t_sign:
-            min_time = t
-        else:
             max_time = t
+        else:
+            min_time = t
+
+        last_pa = pa
 
     t = (max_time + min_time) / 2
-    (dv_a, dv_b), trans_t, pa = hohmann_transfer_to_target_alt_at_ut(vessel, target, ut(), t)
+    dv_a, dv_b, trans_time, pa = hohmann_transfer_to_target_at_ut(poliastro_bodies, vessel, target, ut(), t, trans_time)
     node = vessel.control.add_node(t, prograde=dv_a)
     # vessel.control.add_node(t+trans_t, prograde=dv_b)
 

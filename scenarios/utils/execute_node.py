@@ -25,21 +25,21 @@ def execute_next_node(conn: Client) -> None:
     burn_time = (m0 - m1) / flow_rate
 
     # Orientate ship
-    dialog.status_update("Orientating ship for circularization burn")
+    dialog.status_update("Orientating ship for next burn")
     vessel.auto_pilot.engage()
     vessel.auto_pilot.reference_frame = node.reference_frame
     vessel.auto_pilot.target_direction = (0, 0, 0)
     vessel.auto_pilot.wait()
 
     # Wait until burn
-    dialog.status_update("Waiting until circularization burn")
+    dialog.status_update("Waiting until burn time")
     burn_ut = node.ut - (burn_time/2.0)
     lead_time = 5
     conn.space_center.warp_to(burn_ut - lead_time)
 
     # Execute burn
     dialog.status_update("Ready to execute burn")
-    while ut() - (burn_time/2.0) > 0:
+    while ut() - burn_ut > 0:
         pass
     dialog.status_update("Executing burn")
     vessel.control.throttle = 1.0

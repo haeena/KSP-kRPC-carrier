@@ -1,8 +1,13 @@
 import krpc
+class Singleton(type):
+    _instances = {}
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
 
-class StatusDialog(object):
+class StatusDialog(object, metaclass=Singleton):
 
-    #TODO: make this singleton?
     def __init__(self, conn: krpc.connection = None):
         if not conn:
             conn = krpc.connect(name='Status Dialog')
