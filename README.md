@@ -9,6 +9,9 @@
 ckan.exe install -c requirements.ckan
 ```
 
+[some additional resource required for InfernalRobotics](https://forum.kerbalspaceprogram.com/index.php?/topic/104535-112-magic-smoke-industries-infernal-robotics-202/&page=93&tab=comments#comment-3140574)
+[This save](saves/default) uses `IR Rework Parts` and `Surface Sampler dll`
+
 ## setup kPRC venv and install requirements
 ```
 # on Windows
