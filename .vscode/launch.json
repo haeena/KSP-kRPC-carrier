@@ -9,7 +9,9 @@
             "pythonPath": "${config:python.pythonPath}",
             "program": "${file}",
             "cwd": "${workspaceRoot}",
-            "env": {},
+            "env": {
+                "PYTHONPATH":"."
+            },
             "envFile": "${workspaceRoot}/.env",
             "debugOptions": [
                 "WaitOnAbnormalExit",
@@ -26,7 +28,9 @@
             "program": "${file}",
             "cwd": "",
             "console": "integratedTerminal",
-            "env": {},
+            "env": {
+                "PYTHONPATH":"."
+            },
             "envFile": "${workspaceRoot}/.env",
             "debugOptions": [
                 "WaitOnAbnormalExit",
@@ -44,7 +48,9 @@
                 "notebook"
             ],
             "cwd": "${workspaceRoot}/",
-            "env": {},
+            "env": {
+                "PYTHONPATH":"."
+            },
             "envFile": "${workspaceRoot}/.env",
             "debugOptions": [
                 "WaitOnAbnormalExit",

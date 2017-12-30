@@ -2,7 +2,7 @@ import time
 import math
 
 from krpc.client import Client
-from status_dialog import StatusDialog
+from scripts.utils.status_dialog import StatusDialog
 
 def execute_next_node(conn: Client) -> None:
     vessel = conn.space_center.active_vessel
@@ -65,3 +65,8 @@ def execute_next_node(conn: Client) -> None:
     ut.remove()
 
     return
+
+if __name__ == "__main__":
+    import krpc
+    conn = krpc.connect(name='execute node')
+    execute_next_node(conn)

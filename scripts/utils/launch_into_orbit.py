@@ -3,8 +3,8 @@ import math
 from functools import reduce
 from krpc.client import Client
 
-from status_dialog import StatusDialog
-from execute_node import execute_next_node
+from scripts.utils.status_dialog import StatusDialog
+from scripts.utils.execute_node import execute_next_node
 
 def vessel_current_stage(vessel) -> int:
     """Return current stage

@@ -7,8 +7,8 @@ Vessel = NewType("Vessel", object)
 Body = NewType("Body", object)
 
 from krpc.client import Client
-from status_dialog import StatusDialog
-from execute_node import execute_next_node
+from scripts.utils.status_dialog import StatusDialog
+from scripts.utils.execute_node import execute_next_node
 
 import numpy as np
 
