@@ -97,7 +97,6 @@ def hohmann_transfer_to_target(conn: Client) -> None:
 
     Returns:
         return nothing, return when procedure finished
-
     """
     vessel = conn.space_center.active_vessel
 
@@ -174,6 +173,8 @@ def hohmann_transfer_to_target(conn: Client) -> None:
     node = vessel.control.add_node(t, prograde=dv_a)
     # vessel.control.add_node(t+trans_t, prograde=dv_b)
 
+    # cleanup stream
+    # TODO: is this needed?
     ut.remove()
 
     execute_next_node(conn)
