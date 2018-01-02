@@ -111,3 +111,4 @@ ENV/
 Auto-Saved Ship.craft
 ## auto backup save file
 persistent (*).sfs
+quicksave (*).sfs
