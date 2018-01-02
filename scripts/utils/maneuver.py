@@ -14,7 +14,6 @@ from scripts.utils.execute_node import execute_next_node
 from scripts.utils.krpc_poliastro import krpc_poliastro_bodies
 
 from astropy import units as AstropyUnit
-from astropy.time import Time as AstropyTime
 from poliastro.twobody import Orbit as PoliastroOrbit
 from poliastro.maneuver import Maneuver
 
@@ -302,8 +301,8 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
 if __name__ == "__main__":
     import krpc
     conn = krpc.connect(name='circularize at next apoapsis')
-    #circularize(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_apoapsis)
+    circularize(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_apoapsis)
     #circularize(conn, conn.space_center.ut + 300)
 
     #change_apoapsis(conn, conn.space_center.ut + 300, 240000)
-    change_periapsis(conn, conn.space_center.ut + 300, 60000)
+    #change_periapsis(conn, conn.space_center.ut + 300, 60000)

@@ -60,30 +60,27 @@ def hohmann_transfer_to_target_at_ut(vessel: Vessel, target: Union[Vessel, Body]
 
     time_to_burn = node_ut - ct
 
-    r_i = vessel.orbit.radius_at(node_ut)
-    v_i = vessel.orbit.orbital_speed_at(node_ut)
-    r_f = target.orbit.radius_at(node_ut + trans_time)
-    k = attractor.gravitational_parameter
-    R = r_f / r_i
-    dv_a = ((math.sqrt(2 * R / (1 + R)) - 1) * v_i)
-    dv_b = (1 - math.sqrt(2 / (1 + R))) / math.sqrt(R) * v_i
-    trans_time = (math.pi * math.sqrt((r_i * (1 + R) / 2) ** 3 / k))
-
     krpc_bodies, poliastro_bodies = krpc_poliastro_bodies()
-    prograde_vector_at_node = prograde_vector_at_ut(vessel.orbit, node_ut)
-    dv_vector = dv_a * prograde_vector_at_node
-    hohmann_maneuver = Maneuver((time_to_burn * AstropyUnit.s, dv_vector * AstropyUnit.m / AstropyUnit.s ))
 
     r_v_ct = vessel.position(reference_frame) * AstropyUnit.m
     v_v_ct = vessel.velocity(reference_frame) * AstropyUnit.m / AstropyUnit.s
     ss_v_ct = PoliastroOrbit.from_vectors(poliastro_bodies[attractor.name], r_v_ct, v_v_ct)
-    ss_i = ss_v_ct.propagate(time_to_burn * AstropyUnit.s)
+    r_target = target.position(reference_frame) * AstropyUnit.m
+    v_target = target.velocity(reference_frame) * AstropyUnit.m / AstropyUnit.s
+    ss_target = PoliastroOrbit.from_vectors(poliastro_bodies[attractor.name], r_target, v_target)
 
-    ss_a = ss_i.apply_maneuver(hohmann_maneuver)
-    
-    p_vessel_0 = ss_a.propagate(trans_time * AstropyUnit.s).sample(1).xyz.value.take([0,1,2])
-    p_target_0 = target.orbit.position_at(ct + trans_time, reference_frame)
-    p_target_1 = target.orbit.position_at(ct + trans_time + 1, reference_frame)
+    ss_i = ss_v_ct.propagate(time_to_burn * AstropyUnit.s)
+    r_f = target.orbit.radius_at(node_ut + trans_time) * AstropyUnit.m
+
+    hohmann_maneuver = Maneuver.hohmann(ss_i, r_f)
+    dv_a = norm(hohmann_maneuver[0][1])
+    dv_b = norm(hohmann_maneuver[1][1])
+    trans_time = hohmann_maneuver.get_total_time().value
+    ss_a, ss_f = ss_i.apply_maneuver(hohmann_maneuver, intermediate=True)
+
+    p_vessel_0 = ss_target.propagate(hohmann_maneuver.get_total_time()).sample(1).xyz.value.take([0,1,2])
+    p_target_0 = ss_a.propagate(hohmann_maneuver.get_total_time()).sample(1).xyz.value.take([0,1,2])
+    p_target_1 = ss_a.propagate(hohmann_maneuver.get_total_time() + 1 * AstropyUnit.s).sample(1).xyz.value.take([0,1,2])
     v_target_0 = np.subtract(p_target_1, p_target_0)
     d_vessel_target_0 = np.subtract(p_vessel_0, p_target_0)
 
