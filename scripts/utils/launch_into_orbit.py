@@ -81,7 +81,7 @@ def launch_into_orbit(conn: Client,
             for i in range(-5, -1):
                 dialog.status_update("T={} ...".format(i))
                 time.sleep(1)
-            dialog.status_update("Lift off!!"))
+            dialog.status_update("Lift off!!")
             vessel.control.activate_next_stage()
         else:
             dialog.status_update("Ready to launch")
