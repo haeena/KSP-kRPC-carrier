@@ -1,4 +1,5 @@
 import math
+from functools import lru_cache
 
 # TODO: type hint for kRPC remote objects may need to be separated
 from typing import Union, NewType
@@ -12,6 +13,7 @@ from scripts.utils.execute_node import execute_next_node
 from scripts.utils.krpc_poliastro import krpc_poliastro_bodies
 
 import numpy as np
+from numpy.linalg import norm
 
 from astropy import units as AstropyUnit
 from astropy.time import Time as AstropyTime
@@ -19,7 +21,7 @@ from poliastro.twobody import Orbit as PoliastroOrbit
 from poliastro.maneuver import Maneuver
 
 def unit_vector(vector):
-    return vector / np.linalg.norm(vector)
+    return vector / norm(vector)
 
 def dot(v1, v2):
     v1_u = unit_vector(v1)
@@ -74,8 +76,8 @@ def hohmann_transfer_to_target_at_ut(poliastro_bodies: dict, vessel: Vessel, tar
     trans_time = hoh.get_total_time().value
     ss_a, ss_f = ss_i.apply_maneuver(hoh, intermediate=True)
     
-    dv_a = np.linalg.norm(hoh[0][1])
-    dv_b = np.linalg.norm(hoh[1][1])
+    dv_a = norm(hoh[0][1])
+    dv_b = norm(hoh[1][1])
 
     r_vessel_0 = ss_target.propagate(hoh.get_total_time()).sample(1).xyz.value.take([0,1,2])
     r_target_0 = ss_a.propagate(hoh.get_total_time()).sample(1).xyz.value.take([0,1,2])
