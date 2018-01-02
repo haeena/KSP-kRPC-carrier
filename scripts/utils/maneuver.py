@@ -170,6 +170,9 @@ def change_apoapsis(conn: Client, node_ut: float, new_apoapsis_alt: float):
     attractor_surface_radius = vessel.orbit.apoapsis - vessel.orbit.apoapsis_altitude 
     new_apoapsis = new_apoapsis_alt + attractor_surface_radius
 
+    if new_apoapsis <= vessel.orbit.periapsis:
+        return
+
     krpc_bodies, poliastro_bodies = krpc_poliastro_bodies()
 
     ut = conn.space_center.ut
@@ -177,12 +180,14 @@ def change_apoapsis(conn: Client, node_ut: float, new_apoapsis_alt: float):
     time_to_burn = node_ut - ut
     is_raising = new_apoapsis > vessel.orbit.apoapsis
     prograde_vector_at_node = prograde_vector_at_ut(vessel.orbit, node_ut)
-    burn_vector = prograde_vector_at_node if is_raising else -1 * prograde_vector_at_node
+    burn_direction = 1 if is_raising else -1
+    burn_vector = burn_direction * prograde_vector_at_node 
 
     r_i = vessel.position(reference_frame) * AstropyUnit.m
     v_i = vessel.velocity(reference_frame) * AstropyUnit.m / AstropyUnit.s
     ss_i = PoliastroOrbit.from_vectors(poliastro_bodies[attractor.name], r_i, v_i)
 
+    # get upper bound of deltaV
     min_dv = 0
     max_dv = 0
     if is_raising:
@@ -211,7 +216,79 @@ def change_apoapsis(conn: Client, node_ut: float, new_apoapsis_alt: float):
         else:
             min_dv = tmp_dv
 
-    dv = (max_dv + min_dv) / 2.0
+    dv = burn_direction * (max_dv + min_dv) / 2.0
+    node = vessel.control.add_node(node_ut, prograde=dv)
+
+    execute_next_node(conn)
+
+def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
+    """Execute to change periapsis
+
+    Execute to change periapsis.
+    To be simple, burn only prograde/retrograde, so it might be not optimal
+
+    Args:
+        conn: kRPC connection
+        new_apoapsis_alt: new apoapsis altitude
+        at_ut: schedule burn at specific time, if not specified burn at next periapsis
+
+    Returns:
+        return nothing, return when procedure finished
+    """
+    vessel = conn.space_center.active_vessel
+    attractor = vessel.orbit.body
+    reference_frame = attractor.non_rotating_reference_frame
+
+    attractor_surface_radius = vessel.orbit.apoapsis - vessel.orbit.apoapsis_altitude 
+    new_periapsis = new_periapsis_alt + attractor_surface_radius
+
+    if new_periapsis >= vessel.orbit.apoapsis:
+        return
+
+    krpc_bodies, poliastro_bodies = krpc_poliastro_bodies()
+
+    ut = conn.space_center.ut
+
+    time_to_burn = node_ut - ut
+    is_raising = new_periapsis > vessel.orbit.periapsis
+    prograde_vector_at_node = prograde_vector_at_ut(vessel.orbit, node_ut)
+    burn_direction = 1 if is_raising else -1
+    burn_vector = burn_direction * prograde_vector_at_node 
+
+    r_i = vessel.position(reference_frame) * AstropyUnit.m
+    v_i = vessel.velocity(reference_frame) * AstropyUnit.m / AstropyUnit.s
+    ss_i = PoliastroOrbit.from_vectors(poliastro_bodies[attractor.name], r_i, v_i)
+
+    # get upper bound of deltaV
+    min_dv = 0
+    max_dv = 0
+    if is_raising:
+        max_dv = 0.25
+        tmp_new_pe = vessel.orbit.apoapsis
+        while tmp_new_pe < new_periapsis:
+            max_dv *= 2
+            tmp_burn = max_dv * burn_vector * AstropyUnit.m / AstropyUnit.s
+            tmp_maneuver = Maneuver((time_to_burn * AstropyUnit.s, tmp_burn))
+            tmp_new_pe = ss_i.apply_maneuver(tmp_maneuver).state.r_p.to(AstropyUnit.m).value
+            if max_dv > 100000:
+                break
+    else:
+        # orbital speed should be max_dv for lowering periapsis
+        max_dv = norm(velocity_at_ut(vessel.orbit, node_ut, reference_frame))
+
+    # binary search
+    while max_dv - min_dv > 0.01:
+        tmp_dv = (max_dv + min_dv) / 2.0
+        tmp_burn = tmp_dv * burn_vector * AstropyUnit.m / AstropyUnit.s
+        tmp_maneuver = Maneuver((time_to_burn * AstropyUnit.s, tmp_burn))
+        tmp_new_pe = ss_i.apply_maneuver(tmp_maneuver).state.r_p.to(AstropyUnit.m).value
+
+        if (is_raising and tmp_new_pe > new_periapsis) or (not is_raising and tmp_new_pe < new_periapsis):
+            max_dv = tmp_dv
+        else:
+            min_dv = tmp_dv
+
+    dv = burn_direction * (max_dv + min_dv) / 2.0
     node = vessel.control.add_node(node_ut, prograde=dv)
 
     execute_next_node(conn)
@@ -222,4 +299,5 @@ if __name__ == "__main__":
     #circularize(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_apoapsis)
     #circularize(conn, conn.space_center.ut + 300)
 
-    change_apoapsis(conn, conn.space_center.ut + 300, 240000)
+    #change_apoapsis(conn, conn.space_center.ut + 300, 240000)
+    change_periapsis(conn, conn.space_center.ut + 300, 60000)
