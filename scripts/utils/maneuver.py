@@ -147,6 +147,8 @@ def circularize(conn: Client, node_ut: float):
     dv_anti_radial = dot(dv_vector, anti_radial_vector_at_node) * norm(dv_vector)
     node = vessel.control.add_node(node_ut, radial=dv_anti_radial, prograde=dv_prograde, normal=0)
 
+    # TODO: replace this logic to burn for dynamic circulize?
+    # instead of just executing node, dynamically update direction for circulize
     execute_next_node(conn)
 
 def change_apoapsis(conn: Client, node_ut: float, new_apoapsis_alt: float):
@@ -219,6 +221,8 @@ def change_apoapsis(conn: Client, node_ut: float, new_apoapsis_alt: float):
     dv = burn_direction * (max_dv + min_dv) / 2.0
     node = vessel.control.add_node(node_ut, prograde=dv)
 
+    # TODO: replace this logic to burn for dynamic change apoapsis?
+    # instead of just executing node, dynamically update direction
     execute_next_node(conn)
 
 def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
@@ -291,6 +295,8 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
     dv = burn_direction * (max_dv + min_dv) / 2.0
     node = vessel.control.add_node(node_ut, prograde=dv)
 
+    # TODO: replace this logic to burn for dynamic change apoapsis?
+    # instead of just executing node, dynamically update direction
     execute_next_node(conn)
 
 if __name__ == "__main__":
