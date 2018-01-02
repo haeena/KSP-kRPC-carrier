@@ -135,7 +135,6 @@ def circularize(conn: Client, node_ut: float):
     circular_orbit_speed = math.sqrt(attractor.gravitational_parameter / circularize_radius)
 
     actual_orbit_speed = velocity_at_ut(vessel.orbit, node_ut, reference_frame)
-
     prograde_vector_at_node = prograde_vector_at_ut(vessel.orbit, node_ut, reference_frame)
     anti_radial_vector_at_node = anti_radial_vector_at_ut(vessel.orbit, node_ut, reference_frame)
     horizontal_vector_at_node = horizontal_vector_at_ut(vessel.orbit, node_ut, reference_frame)
@@ -180,6 +179,8 @@ def change_apoapsis(conn: Client, node_ut: float, new_apoapsis_alt: float):
 
     time_to_burn = node_ut - ut
     is_raising = new_apoapsis > vessel.orbit.apoapsis
+
+    # TODO: this shouldn't be orbit prograde/retrograde, but should be horizontal to attractor
     prograde_vector_at_node = prograde_vector_at_ut(vessel.orbit, node_ut)
     burn_direction = 1 if is_raising else -1
     burn_vector = burn_direction * prograde_vector_at_node 
@@ -245,7 +246,7 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
     attractor_surface_radius = vessel.orbit.apoapsis - vessel.orbit.apoapsis_altitude 
     new_periapsis = new_periapsis_alt + attractor_surface_radius
 
-    if new_periapsis >= vessel.orbit.apoapsis:
+    if not vessel.orbit.apoapsis < 0 and new_periapsis >= vessel.orbit.apoapsis:
         return
 
     krpc_bodies, poliastro_bodies = krpc_poliastro_bodies()
@@ -254,6 +255,8 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
 
     time_to_burn = node_ut - ut
     is_raising = new_periapsis > vessel.orbit.periapsis
+
+    # TODO: this shouldn't be orbit prograde/retrograde, but should be horizontal to attractor
     prograde_vector_at_node = prograde_vector_at_ut(vessel.orbit, node_ut)
     burn_direction = 1 if is_raising else -1
     burn_vector = burn_direction * prograde_vector_at_node 
@@ -267,7 +270,7 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
     max_dv = 0
     if is_raising:
         max_dv = 0.25
-        tmp_new_pe = vessel.orbit.apoapsis
+        tmp_new_pe = vessel.orbit.periapsis
         while tmp_new_pe < new_periapsis:
             max_dv *= 2
             tmp_burn = max_dv * burn_vector * AstropyUnit.m / AstropyUnit.s
