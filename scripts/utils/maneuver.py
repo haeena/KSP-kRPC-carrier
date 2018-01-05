@@ -1,4 +1,5 @@
 import math
+from functools import lru_cache
 
 # TODO: type hint for kRPC remote objects may need to be separated
 from typing import Union, NewType
@@ -87,8 +88,39 @@ def anti_radial_vector_at_ut(orbit: Orbit, at_ut: float, reference_frame: Refere
         attractor = orbit.body
         reference_frame = attractor.non_rotating_reference_frame
 
-    anti_radial_vector = orbit.position_at(at_ut, reference_frame)
+    prograde_vector = prograde_vector_at_ut(orbit, at_ut, reference_frame)
+    upward_vector = upward_vector_at_ut(orbit, at_ut, reference_frame)
+
+    # A' = P + Q
+    # Q = x(P-U)
+    # P . A' = 0
+    # |P| = 1, |Q| = 1
+    # => x = (2 * U . P) / ( 1 - U . P)
+    dot_pu = dot(prograde_vector, upward_vector)
+    x = (2*dot_pu/(1-dot_pu))
+    q_vector = upward_vector + x * (prograde_vector - upward_vector)
+    anti_radial_vector = upward_vector + q_vector
     return unit_vector(anti_radial_vector)
+
+def upward_vector_at_ut(orbit: Orbit, at_ut: float, reference_frame: ReferenceFrame = None):
+    """Return upward vector of orbit at ut
+
+    Return upward vector of orbit at ut
+
+    Args:
+        orbit: kRPC orbit object
+        at_ut: at specific time
+        reference_frame: reference_frame to be used
+
+    Returns:
+        return upward unit vector
+    """
+    if not reference_frame:
+        attractor = orbit.body
+        reference_frame = attractor.non_rotating_reference_frame
+
+    upward_vector = orbit.position_at(at_ut, reference_frame)
+    return unit_vector(upward_vector)
 
 def horizontal_vector_at_ut(orbit: Orbit, at_ut: float, reference_frame: ReferenceFrame = None):
     """Return horizontal vector of orbit at ut
@@ -108,8 +140,8 @@ def horizontal_vector_at_ut(orbit: Orbit, at_ut: float, reference_frame: Referen
         reference_frame = attractor.non_rotating_reference_frame
         
     prograde_vector = prograde_vector_at_ut(orbit, at_ut, reference_frame)
-    anti_radial_vector = anti_radial_vector_at_ut(orbit, at_ut, reference_frame)
-    horizontal_vector = prograde_vector - anti_radial_vector * dot(prograde_vector, anti_radial_vector)
+    upward_vector = upward_vector_at_ut(orbit, at_ut, reference_frame)
+    horizontal_vector = prograde_vector - upward_vector * dot(prograde_vector, upward_vector)
     return unit_vector(horizontal_vector)
 
 def circularize(conn: Client, node_ut: float):
@@ -180,7 +212,6 @@ def change_apoapsis(conn: Client, node_ut: float, new_apoapsis_alt: float):
     time_to_burn = node_ut - ut
     is_raising = new_apoapsis > vessel.orbit.apoapsis
 
-    # TODO: this shouldn't be orbit prograde/retrograde, but should be horizontal to attractor
     prograde_vector_at_node = prograde_vector_at_ut(vessel.orbit, node_ut)
     burn_direction = 1 if is_raising else -1
     burn_vector = burn_direction * prograde_vector_at_node 
@@ -229,7 +260,7 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
     """Execute to change periapsis
 
     Execute to change periapsis.
-    To be simple, burn only prograde/retrograde, so it might be not optimal
+    To be simple, burn only horizontal, so it might be not optimal
 
     Args:
         conn: kRPC connection
@@ -256,10 +287,11 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
     time_to_burn = node_ut - ut
     is_raising = new_periapsis > vessel.orbit.periapsis
 
-    # TODO: this shouldn't be orbit prograde/retrograde, but should be horizontal to attractor
-    prograde_vector_at_node = prograde_vector_at_ut(vessel.orbit, node_ut)
+    prograde_vector_at_node = prograde_vector_at_ut(vessel.orbit, node_ut, reference_frame)
+    anti_radial_vector_at_node = anti_radial_vector_at_ut(vessel.orbit, node_ut, reference_frame)
+    horizontal_vector_at_node = horizontal_vector_at_ut(vessel.orbit, node_ut, reference_frame)
     burn_direction = 1 if is_raising else -1
-    burn_vector = burn_direction * prograde_vector_at_node 
+    burn_vector = burn_direction * horizontal_vector_at_node 
 
     r_i = vessel.position(reference_frame) * AstropyUnit.m
     v_i = vessel.velocity(reference_frame) * AstropyUnit.m / AstropyUnit.s
@@ -294,8 +326,10 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
         else:
             min_dv = tmp_dv
 
-    dv = burn_direction * (max_dv + min_dv) / 2.0
-    node = vessel.control.add_node(node_ut, prograde=dv)
+    dv_vector = burn_vector * (max_dv + min_dv) / 2.0
+    dv_prograde = dot(dv_vector, prograde_vector_at_node) * norm(dv_vector)
+    dv_anti_radial = dot(dv_vector, anti_radial_vector_at_node) * norm(dv_vector)
+    node = vessel.control.add_node(node_ut, prograde=dv_prograde, radial=dv_anti_radial, normal=0)
 
     # TODO: replace this logic to burn for dynamic change apoapsis?
     # instead of just executing node, dynamically update direction
@@ -304,8 +338,8 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
 if __name__ == "__main__":
     import krpc
     conn = krpc.connect(name='circularize at next apoapsis')
-    circularize(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_apoapsis)
+    #circularize(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_apoapsis)
     #circularize(conn, conn.space_center.ut + 300)
 
     #change_apoapsis(conn, conn.space_center.ut + 300, 240000)
-    #change_periapsis(conn, conn.space_center.ut + 300, 60000)
+    change_periapsis(conn, conn.space_center.ut + 300, 30000)
