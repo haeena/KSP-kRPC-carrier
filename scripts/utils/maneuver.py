@@ -90,16 +90,7 @@ def anti_radial_vector_at_ut(orbit: Orbit, at_ut: float, reference_frame: Refere
 
     prograde_vector = prograde_vector_at_ut(orbit, at_ut, reference_frame)
     upward_vector = upward_vector_at_ut(orbit, at_ut, reference_frame)
-
-    # A' = P + Q
-    # Q = x(P-U)
-    # P . A' = 0
-    # |P| = 1, |Q| = 1
-    # => x = (2 * U . P) / ( 1 - U . P)
-    dot_pu = dot(prograde_vector, upward_vector)
-    x = (2*dot_pu/(1-dot_pu))
-    q_vector = upward_vector + x * (prograde_vector - upward_vector)
-    anti_radial_vector = upward_vector + q_vector
+    anti_radial_vector = upward_vector - dot(prograde_vector, upward_vector) * upward_vector
     return unit_vector(anti_radial_vector)
 
 def upward_vector_at_ut(orbit: Orbit, at_ut: float, reference_frame: ReferenceFrame = None):
@@ -329,7 +320,19 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
     dv_vector = burn_vector * (max_dv + min_dv) / 2.0
     dv_prograde = dot(dv_vector, prograde_vector_at_node) * norm(dv_vector)
     dv_anti_radial = dot(dv_vector, anti_radial_vector_at_node) * norm(dv_vector)
-    node = vessel.control.add_node(node_ut, prograde=dv_prograde, radial=dv_anti_radial, normal=0)
+    prograde_node = vessel.control.add_node(node_ut, prograde=1)
+    radial_node = vessel.control.add_node(node_ut, radial=1)
+    normal_node = vessel.control.add_node(node_ut, normal=1)
+    prograde_burn_vector = prograde_node.burn_vector(reference_frame)
+    radial_burn_vector = radial_node.burn_vector(reference_frame)
+    normal_burn_vector = normal_node.burn_vector(reference_frame)
+    prograde_node.remove()
+    radial_node.remove()
+    normal_node.remove()
+    dv = norm(dv_vector)
+    dv_aft = math.sqrt(dv_prograde**2 + dv_anti_radial **2)
+    dv_anti_radial2 = dot(dv_vector, radial_burn_vector) * norm(dv_vector)
+    node = vessel.control.add_node(node_ut, prograde=dv_prograde, radial=dv_anti_radial2, normal=0)
 
     # TODO: replace this logic to burn for dynamic change apoapsis?
     # instead of just executing node, dynamically update direction
