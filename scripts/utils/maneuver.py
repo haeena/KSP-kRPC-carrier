@@ -90,8 +90,32 @@ def anti_radial_vector_at_ut(orbit: Orbit, at_ut: float, reference_frame: Refere
 
     prograde_vector = prograde_vector_at_ut(orbit, at_ut, reference_frame)
     upward_vector = upward_vector_at_ut(orbit, at_ut, reference_frame)
-    anti_radial_vector = upward_vector - dot(prograde_vector, upward_vector) * upward_vector
+    anti_radial_vector = upward_vector - prograde_vector * dot(prograde_vector, upward_vector)
+
     return unit_vector(anti_radial_vector)
+
+def normal_vector_at_ut(orbit: Orbit, at_ut: float, reference_frame: ReferenceFrame = None):
+    """Return normal vector of orbit at ut
+
+    Return normal vector of orbit at ut
+
+    Args:
+        orbit: kRPC orbit object
+        at_ut: at specific time
+        reference_frame: reference_frame to be used
+
+    Returns:
+        return anti-radial unit vector
+    """
+    if not reference_frame:
+        attractor = orbit.body
+        reference_frame = attractor.non_rotating_reference_frame
+
+    prograde_vector = prograde_vector_at_ut(orbit, at_ut, reference_frame)
+    anti_radial_vector = anti_radial_vector_at_ut(orbit, at_ut, reference_frame)
+    normal_vector = np.cross(prograde_vector, anti_radial_vector)
+
+    return unit_vector(normal_vector)
 
 def upward_vector_at_ut(orbit: Orbit, at_ut: float, reference_frame: ReferenceFrame = None):
     """Return upward vector of orbit at ut
@@ -280,6 +304,7 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
 
     prograde_vector_at_node = prograde_vector_at_ut(vessel.orbit, node_ut, reference_frame)
     anti_radial_vector_at_node = anti_radial_vector_at_ut(vessel.orbit, node_ut, reference_frame)
+    normal_vector_at_node = normal_vector_at_ut(vessel.orbit, node_ut, reference_frame)
     horizontal_vector_at_node = horizontal_vector_at_ut(vessel.orbit, node_ut, reference_frame)
     burn_direction = 1 if is_raising else -1
     burn_vector = burn_direction * horizontal_vector_at_node 
@@ -318,22 +343,11 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
             min_dv = tmp_dv
 
     dv_vector = burn_vector * (max_dv + min_dv) / 2.0
-    tmp_node = vessel.control.add_node(node_ut, prograde=1)
-    direction_prograde = tmp_node.direction(reference_frame)
-    tmp_node.remove()
-    tmp_node = vessel.control.add_node(node_ut, radial=1)
-    direction_anti_radial = tmp_node.direction(reference_frame)
-    tmp_node.remove()
-    tmp_node = vessel.control.add_node(node_ut, normal=1)
-    direction_normal = tmp_node.direction(reference_frame)
-    tmp_node.remove()
-    
-    dv_prograde = dot(dv_vector, prograde_vector_at_node) * norm(dv_vector)
-    dv_anti_radial = dot(dv_vector, direction_anti_radial) * norm(dv_vector)
-    dv_normal = dot(dv_vector, direction_normal) * norm(dv_vector)
 
-    dv = norm(dv_vector)
-    dv_aft = math.sqrt(dv_prograde**2 + dv_anti_radial **2)
+    dv_prograde = dot(dv_vector, prograde_vector_at_node) * norm(dv_vector)
+    dv_anti_radial = dot(dv_vector, anti_radial_vector_at_node) * norm(dv_vector)
+    dv_normal = dot(dv_vector, normal_vector_at_node) * norm(dv_vector)
+
     node = vessel.control.add_node(node_ut, prograde=dv_prograde, radial=dv_anti_radial, normal=dv_normal)
 
     # TODO: replace this logic to burn for dynamic change apoapsis?
