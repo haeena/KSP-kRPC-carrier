@@ -66,8 +66,6 @@ def execute_next_node(conn: Client) -> None:
 
     vessel.auto_pilot.disengage()
 
-    ut.remove()
-
     return
 
 if __name__ == "__main__":
