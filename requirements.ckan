@@ -3,24 +3,36 @@
 	"abstract": "A list of modules installed on the default KSP instance",
 	"name": "installed-default",
 	"license": "unknown",
-	"version": "2017.12.30.10.00.35",
+	"version": "2018.01.27.01.22.53",
 	"identifier": "installed-default",
 	"spec_version": "v1.6",
 	"recommends": [
 		{
-			"name": "AGExt"
+			"name": "Scatterer-sunflare"
+		},
+		{
+			"name": "RCSBuildAidCont"
+		},
+		{
+			"name": "ModuleManager"
+		},
+		{
+			"name": "Toolbar"
 		},
 		{
 			"name": "AlternateResourcePanel"
 		},
 		{
-			"name": "MechJeb2"
+			"name": "TriggerAu-Flags"
+		},
+		{
+			"name": "FilterExtensions"
 		},
 		{
 			"name": "KerbalAlarmClock"
 		},
 		{
-			"name": "RCSBuildAidCont"
+			"name": "AGExt"
 		},
 		{
 			"name": "RCSSounds"
@@ -29,16 +41,25 @@
 			"name": "RealisticAtmospheres"
 		},
 		{
+			"name": "Kopernicus"
+		},
+		{
+			"name": "ModularFlightIntegrator"
+		},
+		{
 			"name": "RealPlume"
+		},
+		{
+			"name": "SmokeScreen"
 		},
 		{
 			"name": "RealPlume-StockConfigs"
 		},
 		{
-			"name": "SAVE"
+			"name": "EngineLighting"
 		},
 		{
-			"name": "Scatterer-sunflare"
+			"name": "SAVE"
 		},
 		{
 			"name": "SmartParts"
@@ -51,6 +72,12 @@
 		},
 		{
 			"name": "KAS"
+		},
+		{
+			"name": "KIS"
+		},
+		{
+			"name": "CommunityCategoryKit"
 		},
 		{
 			"name": "TacFuelBalancer"
@@ -68,28 +95,16 @@
 			"name": "CrowdSourcedScience"
 		},
 		{
-			"name": "TriggerAu-Flags"
-		},
-		{
-			"name": "EngineLighting"
-		},
-		{
 			"name": "ModularRocketSystem"
 		},
 		{
 			"name": "RealScaleBoosters"
 		},
 		{
+			"name": "KerbalJointReinforcement"
+		},
+		{
 			"name": "KSP-AVC"
-		},
-		{
-			"name": "Kopernicus"
-		},
-		{
-			"name": "ModularFlightIntegrator"
-		},
-		{
-			"name": "SmokeScreen"
 		},
 		{
 			"name": "Scatterer"
@@ -101,9 +116,6 @@
 			"name": "EasyVesselSwitch"
 		},
 		{
-			"name": "EnvironmentalVisualEnhancements"
-		},
-		{
 			"name": "CollisionFX"
 		},
 		{
@@ -113,10 +125,22 @@
 			"name": "DockingPortAlignmentIndicator"
 		},
 		{
+			"name": "RasterPropMonitor"
+		},
+		{
+			"name": "PreciseManeuver"
+		},
+		{
 			"name": "EditorExtensionsRedux"
 		},
 		{
-			"name": "Toolbar"
+			"name": "JanitorsCloset"
+		},
+		{
+			"name": "MechJeb2"
+		},
+		{
+			"name": "FilterExtensionsDefaultConfig"
 		},
 		{
 			"name": "InfernalRobotics"
@@ -125,22 +149,10 @@
 			"name": "KRASH"
 		},
 		{
-			"name": "KIS"
-		},
-		{
 			"name": "LandingHeight"
 		},
 		{
 			"name": "LaserDist"
-		},
-		{
-			"name": "RasterPropMonitor"
-		},
-		{
-			"name": "JanitorsCloset"
-		},
-		{
-			"name": "RasterPropMonitor-Core"
 		},
 		{
 			"name": "HyperEdit"
@@ -155,16 +167,13 @@
 			"name": "CapCom"
 		},
 		{
-			"name": "ContractRewardModifier"
-		},
-		{
 			"name": "ProgressParser"
 		},
 		{
 			"name": "ContractParser"
 		},
 		{
-			"name": "EnvironmentalVisualEnhancements-HR"
+			"name": "ContractRewardModifier"
 		},
 		{
 			"name": "LaunchNumbering"
@@ -173,7 +182,7 @@
 			"name": "KerbalEngineerRedux"
 		},
 		{
-			"name": "PreciseManeuver"
+			"name": "RasterPropMonitor-Core"
 		},
 		{
 			"name": "ChampagneBottleRedux"
@@ -186,6 +195,12 @@
 		},
 		{
 			"name": "BetterBurnTime"
+		},
+		{
+			"name": "EnvironmentalVisualEnhancements"
+		},
+		{
+			"name": "EnvironmentalVisualEnhancements-HR"
 		}
 	]
 }
