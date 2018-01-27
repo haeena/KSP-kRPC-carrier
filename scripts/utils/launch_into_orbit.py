@@ -26,7 +26,9 @@ def launch_into_orbit(conn: Client,
                       auto_stage: bool = True, stop_stage: int = 0,
                       pre_circulization_stage: int = None,
                       post_circulization_stage: int = None,
-                      skip_circulization: bool = False
+                      skip_circulization: bool = False,
+                      use_rcs_on_ascent: bool = False,
+                      use_rcs_on_circulization: bool = False
                      ) -> None:
     """Lunch active vessel into orbit.
 
@@ -42,6 +44,8 @@ def launch_into_orbit(conn: Client,
         pre_circulization_stage: stage to this before circulization
         post_circulization_stage: stage to this after circulization
         skip_circulization: skip circulization after ascent
+        use_rcs_on_ascent: turn on rcs during ascent
+        use_rcs_on_circulization: turn on rcs during circulization
 
     Returns:
         return nothing, return when procedure finished
@@ -73,8 +77,8 @@ def launch_into_orbit(conn: Client,
 
     # Pre-launch setup
     vessel.control.sas = True
-    vessel.control.rcs = False
-    vessel.control.throttle = 0
+    vessel.control.rcs = use_rcs_on_ascent
+    vessel.control.throttle = 1.0
 
     if vessel.situation.name == "pre_launch":
         if auto_launch:
@@ -153,6 +157,9 @@ def launch_into_orbit(conn: Client,
 
     if skip_circulization:
         return
+
+    # pre-circularization setup
+    vessel.control.rcs = use_rcs_on_circulization
 
     # Plan circularization burn (using vis-viva equation)
     dialog.status_update("Planning circularization burn")
