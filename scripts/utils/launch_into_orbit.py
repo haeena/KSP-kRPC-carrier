@@ -76,7 +76,7 @@ def launch_into_orbit(conn: Client,
     vessel.control.rcs = False
     vessel.control.throttle = 0
 
-    if vessel.situation == "pre_launch":
+    if vessel.situation.name == "pre_launch":
         if auto_launch:
             for i in range(-5, -1):
                 dialog.status_update("T={} ...".format(i))
@@ -93,9 +93,6 @@ def launch_into_orbit(conn: Client,
     vessel.auto_pilot.engage()
     vessel.auto_pilot.target_pitch_and_heading(90, ascent_heading)
 
-    turn_angle = 0
-
-    # Main ascent loop
     turn_angle = 0
 
     raise_apoapsis_last_throttle = vessel.control.throttle
