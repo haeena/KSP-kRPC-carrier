@@ -28,8 +28,8 @@ def execute_next_node(conn: Client) -> None:
     dialog.status_update("Orientating ship for next burn")
     vessel.auto_pilot.engage()
     vessel.auto_pilot.reference_frame = node.reference_frame
-    vessel.auto_pilot.target_direction = (0, 0, 0)
-    time.sleep(1)
+    vessel.auto_pilot.target_direction = (0, 1, 0)
+    time.sleep(5)
     vessel.auto_pilot.wait()
 
     # Wait until burn
@@ -65,6 +65,7 @@ def execute_next_node(conn: Client) -> None:
     node.remove()
 
     vessel.auto_pilot.disengage()
+    dialog.status_update("")
 
     return
 
