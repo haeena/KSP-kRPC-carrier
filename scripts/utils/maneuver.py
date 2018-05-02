@@ -1,5 +1,4 @@
 import math
-from functools import lru_cache
 
 # TODO: type hint for kRPC remote objects may need to be separated
 from typing import Union, NewType
