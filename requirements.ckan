@@ -1,38 +1,80 @@
 {
 	"kind": "metapackage",
-	"abstract": "A list of modules installed on the default KSP instance",
-	"name": "installed-default",
+	"abstract": "A list of modules installed on the portable KSP instance",
+	"name": "installed-portable",
 	"license": "unknown",
-	"version": "2018.01.27.01.22.53",
-	"identifier": "installed-default",
+	"version": "2018.05.02.04.05.31",
+	"identifier": "installed-portable",
 	"spec_version": "v1.6",
 	"recommends": [
 		{
-			"name": "Scatterer-sunflare"
+			"name": "KRASH"
 		},
 		{
-			"name": "RCSBuildAidCont"
+			"name": "StageRecovery"
 		},
 		{
-			"name": "ModuleManager"
+			"name": "AutomatedScienceSampler"
+		},
+		{
+			"name": "CapCom"
+		},
+		{
+			"name": "KAS"
+		},
+		{
+			"name": "EasyVesselSwitch"
+		},
+		{
+			"name": "ClickThroughBlocker"
+		},
+		{
+			"name": "ModularFlightIntegrator"
+		},
+		{
+			"name": "Scatterer-config"
+		},
+		{
+			"name": "PreciseManeuver"
+		},
+		{
+			"name": "SmokeScreen"
+		},
+		{
+			"name": "EnvironmentalVisualEnhancements"
+		},
+		{
+			"name": "KIS"
+		},
+		{
+			"name": "DockingPortAlignmentIndicator"
+		},
+		{
+			"name": "JanitorsCloset"
+		},
+		{
+			"name": "ContractRewardModifier"
+		},
+		{
+			"name": "BetterBurnTime"
+		},
+		{
+			"name": "SmartParts"
 		},
 		{
 			"name": "Toolbar"
 		},
 		{
-			"name": "AlternateResourcePanel"
+			"name": "IndicatorLightsCommunityExtensions"
 		},
 		{
-			"name": "TriggerAu-Flags"
+			"name": "JetSoundsContinued"
 		},
 		{
-			"name": "FilterExtensions"
+			"name": "ModuleManager"
 		},
 		{
-			"name": "KerbalAlarmClock"
-		},
-		{
-			"name": "AGExt"
+			"name": "Scatterer"
 		},
 		{
 			"name": "RCSSounds"
@@ -41,166 +83,97 @@
 			"name": "RealisticAtmospheres"
 		},
 		{
-			"name": "Kopernicus"
-		},
-		{
-			"name": "ModularFlightIntegrator"
-		},
-		{
-			"name": "RealPlume"
-		},
-		{
-			"name": "SmokeScreen"
-		},
-		{
-			"name": "RealPlume-StockConfigs"
-		},
-		{
-			"name": "EngineLighting"
+			"name": "IndicatorLights"
 		},
 		{
 			"name": "SAVE"
 		},
 		{
-			"name": "SmartParts"
-		},
-		{
-			"name": "StageRecovery"
-		},
-		{
-			"name": "kRPC"
-		},
-		{
-			"name": "KAS"
-		},
-		{
-			"name": "KIS"
-		},
-		{
-			"name": "CommunityCategoryKit"
-		},
-		{
-			"name": "TacFuelBalancer"
-		},
-		{
-			"name": "Trajectories"
-		},
-		{
-			"name": "TransferWindowPlanner"
-		},
-		{
-			"name": "TweakScale"
-		},
-		{
-			"name": "CrowdSourcedScience"
-		},
-		{
-			"name": "ModularRocketSystem"
-		},
-		{
-			"name": "RealScaleBoosters"
-		},
-		{
-			"name": "KerbalJointReinforcement"
-		},
-		{
-			"name": "KSP-AVC"
-		},
-		{
-			"name": "Scatterer"
-		},
-		{
-			"name": "Scatterer-config"
-		},
-		{
-			"name": "EasyVesselSwitch"
-		},
-		{
-			"name": "CollisionFX"
-		},
-		{
-			"name": "CommunityTechTree"
-		},
-		{
-			"name": "DockingPortAlignmentIndicator"
-		},
-		{
-			"name": "RasterPropMonitor"
-		},
-		{
-			"name": "PreciseManeuver"
-		},
-		{
-			"name": "EditorExtensionsRedux"
-		},
-		{
-			"name": "JanitorsCloset"
-		},
-		{
-			"name": "MechJeb2"
-		},
-		{
-			"name": "FilterExtensionsDefaultConfig"
-		},
-		{
-			"name": "InfernalRobotics"
-		},
-		{
-			"name": "KRASH"
-		},
-		{
-			"name": "LandingHeight"
-		},
-		{
-			"name": "LaserDist"
-		},
-		{
-			"name": "HyperEdit"
-		},
-		{
-			"name": "DistantObject"
-		},
-		{
-			"name": "DistantObject-default"
-		},
-		{
-			"name": "CapCom"
-		},
-		{
-			"name": "ProgressParser"
-		},
-		{
-			"name": "ContractParser"
-		},
-		{
-			"name": "ContractRewardModifier"
-		},
-		{
-			"name": "LaunchNumbering"
-		},
-		{
-			"name": "KerbalEngineerRedux"
-		},
-		{
-			"name": "RasterPropMonitor-Core"
-		},
-		{
 			"name": "ChampagneBottleRedux"
-		},
-		{
-			"name": "AutomatedScienceSampler"
 		},
 		{
 			"name": "KerboKatzUtilities"
 		},
 		{
-			"name": "BetterBurnTime"
+			"name": "CrowdSourcedScience"
 		},
 		{
-			"name": "EnvironmentalVisualEnhancements"
+			"name": "EngineLighting"
+		},
+		{
+			"name": "KerbalAlarmClock"
+		},
+		{
+			"name": "RCSBuildAidCont"
+		},
+		{
+			"name": "Kopernicus"
+		},
+		{
+			"name": "TriggerAu-Flags"
+		},
+		{
+			"name": "CollisionFX"
+		},
+		{
+			"name": "RealPlume-StockConfigs"
+		},
+		{
+			"name": "kRPC"
+		},
+		{
+			"name": "LandingHeight"
+		},
+		{
+			"name": "EditorExtensionsRedux"
+		},
+		{
+			"name": "HyperEdit"
+		},
+		{
+			"name": "DistantObject-default"
+		},
+		{
+			"name": "Trajectories"
+		},
+		{
+			"name": "ContractParser"
+		},
+		{
+			"name": "ProgressParser"
 		},
 		{
 			"name": "EnvironmentalVisualEnhancements-HR"
+		},
+		{
+			"name": "LaunchNumbering"
+		},
+		{
+			"name": "AGExt"
+		},
+		{
+			"name": "ToolbarController"
+		},
+		{
+			"name": "Scatterer-sunflare"
+		},
+		{
+			"name": "RealPlume"
+		},
+		{
+			"name": "DistantObject"
+		},
+		{
+			"name": "TweakScale"
+		},
+		{
+			"name": "AlternateResourcePanel"
+		},
+		{
+			"name": "KSP-AVC"
+		},
+		{
+			"name": "CommunityTechTree"
 		}
 	]
 }
