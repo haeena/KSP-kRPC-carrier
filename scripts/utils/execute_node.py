@@ -54,7 +54,7 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     while remaining_delta_v() > 0.1 and not point_passed:
         current_stage = reduce(lambda x, y: max(x, y.decouple_stage, y.stage), vessel.parts.all, 0)
         if auto_stage and current_stage > stop_stage:
-            auto_stage(conn)
+            autostage(conn)
         a100 = vessel.available_thrust / vessel.mass
         throttle = max(0.05, min(1.0, remaining_delta_v() / a100))
         if throttle < 1.0:
