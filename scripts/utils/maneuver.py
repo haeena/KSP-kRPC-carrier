@@ -219,7 +219,7 @@ def change_apoapsis(conn: Client, node_ut: float, new_apoapsis_alt: float):
     if new_apoapsis <= vessel.orbit.periapsis:
         return
 
-    krpc_bodies, poliastro_bodies = krpc_poliastro_bodies()
+    krpc_bodies, poliastro_bodies = krpc_poliastro_bodies(conn)
 
     ut = conn.space_center.ut
 

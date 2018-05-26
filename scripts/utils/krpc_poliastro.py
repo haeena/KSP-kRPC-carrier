@@ -1,4 +1,4 @@
-
+from krpc.client import Client
 from typing import Union, NewType
 Vessel = NewType("Vessel", object)
 Body = NewType("Body", object)
@@ -25,7 +25,7 @@ def _convert_body_krpc_to_poliastro(poliastro_bodies: dict, parent: PoliastroBod
         _convert_body_krpc_to_poliastro(poliastro_bodies, poliastro_body, satelite)
     return
 
-def krpc_poliastro_bodies() -> (dict, dict):
+def krpc_poliastro_bodies(conn: Client) -> (dict, dict):
     global KRPC_BODIES, POLIASTRO_BODIES
     if not POLIASTRO_BODIES:
         import krpc
