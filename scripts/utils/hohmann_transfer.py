@@ -33,7 +33,7 @@ def angle_between(v1, v2):
     v2_u = unit_vector(v2)
     return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
-def hohmann_transfer_to_target_at_ut(vessel: Vessel, target: Union[Vessel, Body],
+def hohmann_transfer_to_target_at_ut(conn: Client, vessel: Vessel, target: Union[Vessel, Body],
                                      ct: float, node_ut: float, trans_time: float = 0
                                     ) -> (float, float, float, float):
     """calculate (dv_a, dv_b), trans_time and sort of mean anomaly phase angle of hohmann transfer at time t
@@ -41,6 +41,7 @@ def hohmann_transfer_to_target_at_ut(vessel: Vessel, target: Union[Vessel, Body]
     calculate (dv_a, dv_b), trans_time and sort of mean anomaly phase angle of hohmann transfer at time t
     
     Args:
+        conn: kRPC connection
         vessel: active vessel for transfer
         target: target vessel or celesital body
         ct: currrent time
@@ -60,7 +61,7 @@ def hohmann_transfer_to_target_at_ut(vessel: Vessel, target: Union[Vessel, Body]
 
     time_to_burn = node_ut - ct
 
-    krpc_bodies, poliastro_bodies = krpc_poliastro_bodies()
+    krpc_bodies, poliastro_bodies = krpc_poliastro_bodies(conn)
 
     r_v_ct = vessel.position(reference_frame) * AstropyUnit.m
     v_v_ct = vessel.velocity(reference_frame) * AstropyUnit.m / AstropyUnit.s
@@ -131,14 +132,14 @@ def hohmann_transfer_to_target(conn: Client) -> None:
     num_divisions = 30
     dt = (max_time - min_time) / num_divisions
 
-    dv_a, dv_b, trans_time, pa = hohmann_transfer_to_target_at_ut(vessel, target, ut(), min_time)
+    dv_a, dv_b, trans_time, pa = hohmann_transfer_to_target_at_ut(conn, vessel, target, ut(), min_time)
     last_pa = pa
     min_abs_pa = abs(pa)
     last_pa_t_sign = None
 
     for i in range(1, num_divisions):
         t = min_time + dt * i
-        dv_a, dv_b, trans_time, pa = hohmann_transfer_to_target_at_ut(vessel, target, ut(), t, trans_time)
+        dv_a, dv_b, trans_time, pa = hohmann_transfer_to_target_at_ut(conn, vessel, target, ut(), t, trans_time)
         pa_t_sign = math.copysign(1, pa - last_pa)
         last_pa = pa
 
@@ -158,7 +159,7 @@ def hohmann_transfer_to_target(conn: Client) -> None:
 
     while (max_time - min_time > 0.01):
         t = (max_time + min_time) / 2
-        dv_a, dv_b, trans_time, pa = hohmann_transfer_to_target_at_ut(vessel, target, ut(), t, trans_time)
+        dv_a, dv_b, trans_time, pa = hohmann_transfer_to_target_at_ut(conn, vessel, target, ut(), t, trans_time)
 
         if math.copysign(1, pa) == pa_t_sign:
             max_time = t
@@ -168,7 +169,7 @@ def hohmann_transfer_to_target(conn: Client) -> None:
         last_pa = pa
 
     t = (max_time + min_time) / 2
-    dv_a, dv_b, trans_time, pa = hohmann_transfer_to_target_at_ut(vessel, target, ut(), t, trans_time)
+    dv_a, dv_b, trans_time, pa = hohmann_transfer_to_target_at_ut(conn, vessel, target, ut(), t, trans_time)
     node = vessel.control.add_node(t, prograde=dv_a)
     # vessel.control.add_node(t+trans_t, prograde=dv_b)
 
