@@ -109,22 +109,23 @@ def launch_into_orbit(conn: Client,
         if auto_stage and current_stage > stop_stage:
             autostage(conn)
 
-        # Gravity turn
-        if altitude() > TURN_START_ALTITUDE and altitude() < TURN_END_ALTITUDE:
-            dialog.status_update("Gravity turn")
-
-            frac = ((altitude() - TURN_START_ALTITUDE) /
-                    (TURN_END_ALTITUDE - TURN_START_ALTITUDE))
-            new_turn_angle = frac * 90
-            if abs(new_turn_angle - turn_angle) > 0.5:
-                turn_angle = new_turn_angle
-                vessel.auto_pilot.target_pitch_and_heading(90-turn_angle, ascent_heading)
-
-        # Decrease throttle when approaching target apoapsis
         if apoapsis() <= target_alt*0.9:
             vessel.control.throttle = 1
+            # Gravity turn
+            if altitude() > TURN_START_ALTITUDE and altitude() < TURN_END_ALTITUDE:
+                dialog.status_update("Gravity turn")
+
+                frac = ((altitude() - TURN_START_ALTITUDE) /
+                        (TURN_END_ALTITUDE - TURN_START_ALTITUDE))
+                new_turn_angle = frac * 90
+                if abs(new_turn_angle - turn_angle) > 0.5:
+                    turn_angle = new_turn_angle
+                    vessel.auto_pilot.target_pitch_and_heading(90-turn_angle, ascent_heading)
+
+        # Decrease throttle when approaching target apoapsis
         elif apoapsis() < target_alt:
             dialog.status_update("Approaching target apoapsis")
+            vessel.auto_pilot.target_pitch_and_heading(0, ascent_heading)
             try:
                 instant_rate_per_throttle = (apoapsis() - raise_apoapsis_last_apoapsis) / ((ut() - raise_apoapsis_last_ut) * raise_apoapsis_last_throttle)
                 instant_rate_per_throttle = max(1.0, instant_rate_per_throttle)
@@ -132,6 +133,8 @@ def launch_into_orbit(conn: Client,
                 vessel.control.throttle = min(1, max(0.05, required_appoapsis_height / instant_rate_per_throttle))
             except:
                 vessel.control.throttle = 0.05
+        
+        # target appoapsis reached 
         else:
             vessel.control.throttle = 0
             if altitude() < atomosphere_depth:
