@@ -5,6 +5,7 @@ from krpc.client import Client
 
 from scripts.utils.status_dialog import StatusDialog
 from scripts.utils.execute_node import execute_next_node
+from scripts.utils.autostage import autostage
 
 def vessel_current_stage(vessel) -> int:
     """Return current stage
@@ -104,16 +105,9 @@ def launch_into_orbit(conn: Client,
     raise_apoapsis_last_ut = ut()
 
     while True:
-        ## TODO: this logic should be improved
-        # Staging when fuel empty
         current_stage = reduce(lambda x, y: max(x, y.decouple_stage, y.stage), vessel.parts.all, 0)
         if auto_stage and current_stage > stop_stage:
-            resources_of_stage = vessel.resources_in_decouple_stage(current_stage - 1)
-            max_resource = max(map(lambda r: resources_of_stage.amount(r), resource_types_for_stage))
-
-            if max_resource <= 0.1:
-                dialog.status_update("Staging: stage {}".format(current_stage - 1))
-                vessel.control.activate_next_stage()
+            autostage(conn)
 
         # Gravity turn
         if altitude() > TURN_START_ALTITUDE and altitude() < TURN_END_ALTITUDE:
