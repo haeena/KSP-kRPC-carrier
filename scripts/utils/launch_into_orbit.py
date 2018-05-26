@@ -83,7 +83,7 @@ def launch_into_orbit(conn: Client,
 
     if vessel.situation.name == "pre_launch":
         if auto_launch:
-            for i in range(-5, -1):
+            for i in range(-5, 1):
                 dialog.status_update("T={} ...".format(i))
                 time.sleep(1)
             dialog.status_update("Lift off!!")
