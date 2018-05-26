@@ -42,7 +42,7 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
 
     # Execute burn
     dialog.status_update("Ready to execute burn")
-    while ut() - burn_ut > 0:
+    while burn_ut - ut() > 0:
         pass
     dialog.status_update("Executing burn")
     vessel.control.throttle = 1.0
@@ -75,6 +75,8 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     return
 
 if __name__ == "__main__":
+    import os
     import krpc
-    conn = krpc.connect(name='execute node')
+    krpc_address = os.environ["KRPC_ADDRESS"]
+    conn = krpc.connect(name='execute node', address=krpc_address)
     execute_next_node(conn)
