@@ -31,7 +31,6 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     vessel.auto_pilot.engage()
     vessel.auto_pilot.reference_frame = node.reference_frame
     vessel.auto_pilot.target_direction = (0, 1, 0)
-    time.sleep(5)
     vessel.auto_pilot.wait()
 
     # Wait until burn
@@ -70,7 +69,6 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     node.remove()
 
     vessel.auto_pilot.disengage()
-    dialog.status_update("")
 
     return
 
