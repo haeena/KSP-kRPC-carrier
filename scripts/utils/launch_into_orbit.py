@@ -21,6 +21,7 @@ def vessel_current_stage(vessel) -> int:
 
     return reduce(lambda x, y: max(x, y.stage, y.decouple_stage), vessel.parts.all, 0)
 
+# TODO: get staging condition per stage number
 def launch_into_orbit(conn: Client,
                       target_alt: float, target_inc: float,
                       auto_launch: bool = True,
