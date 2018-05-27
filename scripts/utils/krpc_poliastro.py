@@ -28,15 +28,13 @@ def _convert_body_krpc_to_poliastro(poliastro_bodies: dict, parent: PoliastroBod
 def krpc_poliastro_bodies(conn: Client) -> (dict, dict):
     global KRPC_BODIES, POLIASTRO_BODIES
     if not POLIASTRO_BODIES:
-        import krpc
-        with krpc.connect(name='convert krpc bodies to poliastro bodies') as conn:
-            poliastro_bodies = {}
-            krpc_bodies = conn.space_center.bodies
+        poliastro_bodies = {}
+        krpc_bodies = conn.space_center.bodies
 
-            krpc_Sun = krpc_bodies["Sun"]
-            _convert_body_krpc_to_poliastro(poliastro_bodies, None, krpc_Sun)
-            KRPC_BODIES = krpc_bodies
-            POLIASTRO_BODIES = poliastro_bodies
+        krpc_Sun = krpc_bodies["Sun"]
+        _convert_body_krpc_to_poliastro(poliastro_bodies, None, krpc_Sun)
+        KRPC_BODIES = krpc_bodies
+        POLIASTRO_BODIES = poliastro_bodies
 
     return (KRPC_BODIES, POLIASTRO_BODIES)
 
