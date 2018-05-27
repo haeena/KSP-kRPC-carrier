@@ -30,17 +30,18 @@ def set_autostaging(conn: Client,
     if current_stage <= stop_stage:
         return
 
+    resources_of_stage = vessel.resources_in_decouple_stage(current_stage - 1)
+
     resource_types_for_stage = []
-    if liquid_fuel:
+    if liquid_fuel and resources_of_stage.has_resource("LiquidFuel"):
         resource_types_for_stage.append("LiquidFuel")
-    if oxidizer:
+    if oxidizer and resources_of_stage.has_resource("Oxidizer"):
         resource_types_for_stage.append("Oxidizer")
-    if solid_fuel:
+    if solid_fuel and resources_of_stage("SolidFuel"):
         resource_types_for_stage.append("SolidFuel")
     if len(resource_types_for_stage) == 0:
         return
 
-    resources_of_stage = vessel.resources_in_decouple_stage(current_stage - 1)
     # not understanding why this list conversion required, but at least we cannot iterate over map
     resources_calls = list(map(lambda r:conn.get_call(resources_of_stage.amount, r), resource_types_for_stage))
 
