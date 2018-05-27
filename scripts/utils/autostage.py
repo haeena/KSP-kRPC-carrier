@@ -10,7 +10,7 @@ def set_autostaging(conn: Client,
                     liquid_fuel: bool = True,
                     oxidizer: bool = True,
                     solid_fuel: bool = True,
-                    threashold: float = 1,
+                    threashold: float = 0,
                     stop_stage: int = 0) -> None:
     """set next autostagin on resource is under certin level
 
@@ -49,7 +49,7 @@ def set_autostaging(conn: Client,
 
     first_cond = True
     for resources_call in resources_calls:
-        cond = expression.less_than(
+        cond = expression.less_than_or_equal(
                 conn.krpc.Expression.call(resources_call),
                 conn.krpc.Expression.constant_float(threashold)
             )
