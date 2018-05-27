@@ -37,7 +37,7 @@ def set_autostaging(conn: Client,
         resource_types_for_stage.append("LiquidFuel")
     if oxidizer and resources_of_stage.has_resource("Oxidizer"):
         resource_types_for_stage.append("Oxidizer")
-    if solid_fuel and resources_of_stage("SolidFuel"):
+    if solid_fuel and resources_of_stage.has_resource("SolidFuel"):
         resource_types_for_stage.append("SolidFuel")
     if len(resource_types_for_stage) == 0:
         return
