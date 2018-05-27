@@ -5,7 +5,7 @@ from krpc.client import Client
 
 from scripts.utils.status_dialog import StatusDialog
 from scripts.utils.execute_node import execute_next_node
-from scripts.utils.autostage import autostage
+from scripts.utils.autostage import set_autostaging, unset_autostaging
 
 def vessel_current_stage(vessel) -> int:
     """Return current stage
@@ -73,9 +73,6 @@ def launch_into_orbit(conn: Client,
     altitude = conn.add_stream(getattr, vessel.flight(), 'mean_altitude')
     apoapsis = conn.add_stream(getattr, vessel.orbit, 'apoapsis_altitude')
     time_to_apoapsis = conn.add_stream(getattr, vessel.orbit, 'time_to_apoapsis')
-    vessel_stage = reduce(lambda x, y: max(x, y.stage, y.decouple_stage), vessel.parts.all, 0)
-
-    resource_types_for_stage = ["LiquidFuel", "Oxidizer", "SolidFuel"]
 
     # Pre-launch setup
     vessel.control.sas = True
@@ -94,6 +91,10 @@ def launch_into_orbit(conn: Client,
 
     # Main ascent loop
 
+    ## setup autostaging
+    if auto_stage:
+        set_autostaging(conn, stop_stage=stop_stage)
+
     ## TODO: this assumes launch from equato
     ascent_heading = (target_inc + 90) % 360
     vessel.auto_pilot.engage()
@@ -106,10 +107,6 @@ def launch_into_orbit(conn: Client,
     raise_apoapsis_last_ut = ut()
 
     while True:
-        current_stage = reduce(lambda x, y: max(x, y.decouple_stage, y.stage), vessel.parts.all, 0)
-        if auto_stage and current_stage > stop_stage:
-            autostage(conn)
-
         if apoapsis() <= target_alt*0.9:
             vessel.control.throttle = 1
             # Gravity turn
@@ -148,6 +145,9 @@ def launch_into_orbit(conn: Client,
         raise_apoapsis_last_ut = ut()
 
     vessel.control.throttle = 0
+
+    if auto_stage:
+        unset_autostaging()
 
     if pre_circulization_stage:
         while vessel_current_stage(vessel) <= pre_circulization_stage:

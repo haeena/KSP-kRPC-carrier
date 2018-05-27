@@ -4,7 +4,7 @@ from functools import reduce
 
 from krpc.client import Client
 from scripts.utils.status_dialog import StatusDialog
-from scripts.utils.autostage import autostage
+from scripts.utils.autostage import set_autostaging, unset_autostaging
 
 def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0) -> None:
     vessel = conn.space_center.active_vessel
@@ -17,6 +17,10 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     ## setup dialog and streams
     dialog = StatusDialog(conn)
     ut = conn.add_stream(getattr, conn.space_center, 'ut')
+
+    ## setup autostaging
+    if auto_stage:
+        set_autostaging(conn, stop_stage=stop_stage)
 
     # Calculate burn time (using rocket equation)
     F = vessel.available_thrust
@@ -47,13 +51,10 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     vessel.control.throttle = 1.0
 
     remaining_delta_v = conn.add_stream(getattr, node, "remaining_delta_v")
-    min_delta_v = remaining_delta_v()
+    min_delta_v = remaining_delta_v()        
 
     point_passed = False
     while remaining_delta_v() > 0.1 and not point_passed:
-        current_stage = reduce(lambda x, y: max(x, y.decouple_stage, y.stage), vessel.parts.all, 0)
-        if auto_stage and current_stage > stop_stage:
-            autostage(conn)
         a100 = vessel.available_thrust / vessel.mass
         throttle = max(0.05, min(1.0, remaining_delta_v() / a100))
         if throttle < 1.0:
@@ -67,6 +68,8 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     vessel.control.throttle = 0.0
     remaining_delta_v.remove()
     node.remove()
+    if auto_stage:
+        unset_autostaging()
 
     vessel.auto_pilot.disengage()
 
