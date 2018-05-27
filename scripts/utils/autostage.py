@@ -4,6 +4,8 @@ from functools import reduce
 from krpc.client import Client
 from scripts.utils.status_dialog import StatusDialog
 
+is_autostaging = True
+
 def set_autostaging(conn: Client,
                     liquid_fuel: bool = True,
                     oxidizer: bool = True,
@@ -58,8 +60,12 @@ def set_autostaging(conn: Client,
     
     staging_event = conn.krpc.add_event(staging_condition)
 
+    # TODO: global without lock
     def auto_staging():
+        global is_autostaging
         staging_event.remove()
+        if not is_autostaging:
+            return
         dialog.status_update("Staging: stage {}".format(current_stage - 1))
 
         vessel.control.activate_next_stage()
@@ -67,6 +73,11 @@ def set_autostaging(conn: Client,
         
     staging_event.add_callback(auto_staging)
     staging_event.start()
+
+# TODO: global without lock
+def unset_autostaging():
+    global is_autostaging
+    is_autostaging = False
 
 def autostage(conn: Client,
               liquid_fuel: bool = True, oxidizer: bool = True,
