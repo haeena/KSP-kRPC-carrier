@@ -24,6 +24,7 @@ def vessel_current_stage(vessel) -> int:
 # TODO: get staging condition per stage number
 def launch_into_orbit(conn: Client,
                       target_alt: float, target_inc: float,
+                      turn_start_alt: float = 250, turn_end_alt: float = 45000,
                       auto_launch: bool = True,
                       auto_stage: bool = True, stop_stage: int = 0,
                       pre_circulization_stage: int = None,
@@ -60,10 +61,6 @@ def launch_into_orbit(conn: Client,
     srf_frame = vessel.orbit.body.reference_frame
 
     atomosphere_depth = body.atmosphere_depth
-
-    ## TODO: parametalize or default per body
-    TURN_START_ALTITUDE = 250
-    TURN_END_ALTITUDE = 45000
 
     # Set up dialog
     dialog = StatusDialog(conn)
@@ -110,11 +107,11 @@ def launch_into_orbit(conn: Client,
         if apoapsis() <= target_alt*0.9:
             vessel.control.throttle = 1
             # Gravity turn
-            if altitude() > TURN_START_ALTITUDE and altitude() < TURN_END_ALTITUDE:
+            if altitude() > turn_start_alt and altitude() < turn_end_alt:
                 dialog.status_update("Gravity turn")
 
-                frac = ((altitude() - TURN_START_ALTITUDE) /
-                        (TURN_END_ALTITUDE - TURN_START_ALTITUDE))
+                frac = ((altitude() - turn_start_alt) /
+                        (turn_end_alt - turn_start_alt))
                 new_turn_angle = frac * 90
                 if abs(new_turn_angle - turn_angle) > 0.5:
                     turn_angle = new_turn_angle
