@@ -34,30 +34,35 @@ def set_autostaging(conn: Client,
     if current_stage <= stop_stage:
         return
 
-    resources_of_stage = vessel.resources_in_decouple_stage(current_stage - 1)
+    resources_in_next_decoupled_stage = vessel.resources_in_decouple_stage(current_stage - 1)
 
     # TODO: fairing like 0 resource stage handling
+    # TODO: offset must take account unused (undrained) resource, not only SF, that could be LF and/or O also
     resource_types_for_stage = []
-    if liquid_fuel and resources_of_stage.has_resource("LiquidFuel"):
+    if liquid_fuel and resources_in_next_decoupled_stage.has_resource("LiquidFuel"):
         resource_types_for_stage.append("LiquidFuel")
-    if oxidizer and resources_of_stage.has_resource("Oxidizer"):
+    if oxidizer and resources_in_next_decoupled_stage.has_resource("Oxidizer"):
         resource_types_for_stage.append("Oxidizer")
-    if solid_fuel and resources_of_stage.has_resource("SolidFuel"):
+    if solid_fuel and resources_in_next_decoupled_stage.has_resource("SolidFuel"):
+        # calculate solid fuel offset (would be separetron)
+        solidfuel_unused_decoupled_in_next_stage = 0
+        solidfuel_unused_decoupled_in_next_stage = sum([ e.part.resources.amount("SolidFuel") for e in vessel.parts.engines if not e.active and e.part.resources.has_resource("SolidFuel") and e.part.decouple_stage == (current_stage - 1)])
         resource_types_for_stage.append("SolidFuel")
     if len(resource_types_for_stage) == 0:
         return
 
-    # not understanding why this list conversion required, but at least we cannot iterate over map
-    resources_calls = list(map(lambda r:conn.get_call(resources_of_stage.amount, r), resource_types_for_stage))
-
     expression = conn.krpc.Expression
 
-    # TODO: stage with SRB and separatron fails on this condition
+    # TODO: first condtion must be stage activation by other mechanism
     first_cond = True
-    for resources_call in resources_calls:
+    for resource in resource_types_for_stage:
+        resource_threashold = threashold
+        if resource == "SolidFuel":
+            resource_threashold += solidfuel_unused_decoupled_in_next_stage
+        resource_amount_call = conn.get_call(resources_in_next_decoupled_stage.amount, resource)
         cond = expression.less_than_or_equal(
-                conn.krpc.Expression.call(resources_call),
-                conn.krpc.Expression.constant_float(threashold)
+                conn.krpc.Expression.call(resource_amount_call),
+                conn.krpc.Expression.constant_float(resource_threashold)
             )
         if first_cond:
             first_cond = False
