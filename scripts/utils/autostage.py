@@ -36,7 +36,6 @@ def set_autostaging(conn: Client,
 
     resources_in_next_decoupled_stage = vessel.resources_in_decouple_stage(current_stage - 1)
 
-    # TODO: fairing like 0 resource stage handling
     # TODO: offset must take account unused (undrained) resource, not only SF, that could be LF and/or O also
     resource_types_for_stage = []
     if liquid_fuel and resources_in_next_decoupled_stage.has_resource("LiquidFuel"):
@@ -49,7 +48,9 @@ def set_autostaging(conn: Client,
         solidfuel_unused_decoupled_in_next_stage = sum([ e.part.resources.amount("SolidFuel") for e in vessel.parts.engines if not e.active and e.part.resources.has_resource("SolidFuel") and e.part.decouple_stage == (current_stage - 1)])
         resource_types_for_stage.append("SolidFuel")
     if len(resource_types_for_stage) == 0:
-        # TODO: action here would be better to wait one or half sec then stage?
+        # if current stage has empty resource (fairing etc.) just stage
+        vessel.control.activate_next_stage()
+        set_autostaging(conn, liquid_fuel, oxidizer, solid_fuel, threashold, stop_stage)
         return
 
     expression = conn.krpc.Expression
