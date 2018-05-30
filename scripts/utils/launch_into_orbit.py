@@ -7,20 +7,6 @@ from scripts.utils.status_dialog import StatusDialog
 from scripts.utils.execute_node import execute_next_node
 from scripts.utils.autostage import set_autostaging, unset_autostaging
 
-def vessel_current_stage(vessel) -> int:
-    """Return current stage
-
-    Search all parts and return max(parts.stage, parts.decouple_stage) of all parts
-
-    Args:
-        vessel: target vessel
-
-    Returns:
-        current stage of the vessel
-    """
-
-    return reduce(lambda x, y: max(x, y.stage, y.decouple_stage), vessel.parts.all, 0)
-
 # TODO: get staging condition per stage number
 def launch_into_orbit(conn: Client,
                       target_alt: float, target_inc: float,
@@ -147,7 +133,7 @@ def launch_into_orbit(conn: Client,
         unset_autostaging()
 
     if pre_circulization_stage:
-        while vessel_current_stage(vessel) <= pre_circulization_stage:
+        while vessel.control.current_stage <= pre_circulization_stage:
             vessel.control.activate_next_stage()
 
     if skip_circulization:
@@ -173,7 +159,7 @@ def launch_into_orbit(conn: Client,
     execute_next_node(conn, auto_stage=auto_stage)
 
     if post_circulization_stage:
-        while vessel_current_stage(vessel) <= post_circulization_stage:
+        while vessel.control.current_stage <= post_circulization_stage:
             vessel.control.activate_next_stage()
 
     dialog.status_update("Launch complete")
@@ -185,4 +171,4 @@ if __name__ == "__main__":
     import krpc
     krpc_address = os.environ["KRPC_ADDRESS"]
     connnection = krpc.connect(name='Launch into orbit', address=krpc_address)
-    launch_into_orbit(connnection, 100000, 90, turn_start_alt=10000)
+    launch_into_orbit(connnection, 100000, 90, turn_start_alt=12000)

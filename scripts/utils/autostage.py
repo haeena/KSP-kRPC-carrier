@@ -29,13 +29,13 @@ def set_autostaging(conn: Client,
     dialog = StatusDialog(conn)
     vessel = conn.space_center.active_vessel
 
-    current_stage = reduce(lambda x, y: max(x, y.decouple_stage, y.stage), vessel.parts.all, 0)
+    current_stage =    current_stage = vessel.control.current_stage
     if current_stage <= stop_stage:
         return
 
     resources_of_stage = vessel.resources_in_decouple_stage(current_stage - 1)
 
-    #TODO: fairing like 0 resource stage handling
+    # TODO: fairing like 0 resource stage handling
     resource_types_for_stage = []
     if liquid_fuel and resources_of_stage.has_resource("LiquidFuel"):
         resource_types_for_stage.append("LiquidFuel")
@@ -51,6 +51,7 @@ def set_autostaging(conn: Client,
 
     expression = conn.krpc.Expression
 
+    # TODO: stage with SRB and separatron fails on this condition
     first_cond = True
     for resources_call in resources_calls:
         cond = expression.less_than_or_equal(
@@ -109,9 +110,8 @@ def autostage(conn: Client,
     if solid_fuel:
         resource_types_for_stage.append("SolidFuel")
 
-    ## TODO: this logic should be improved
     # Staging when fuel empty
-    current_stage = reduce(lambda x, y: max(x, y.decouple_stage, y.stage), vessel.parts.all, 0)
+    current_stage = vessel.control.current_stage
 
     resources_of_stage = vessel.resources_in_decouple_stage(current_stage - 1)
     max_resource = max(map(lambda r: resources_of_stage.amount(r), resource_types_for_stage))
