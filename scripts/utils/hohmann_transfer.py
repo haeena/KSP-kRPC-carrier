@@ -79,9 +79,9 @@ def hohmann_transfer_to_target_at_ut(conn: Client, vessel: Vessel, target: Union
     trans_time = hohmann_maneuver.get_total_time().value
     ss_a, ss_f = ss_i.apply_maneuver(hohmann_maneuver, intermediate=True)
 
-    p_vessel_0 = ss_target.propagate(hohmann_maneuver.get_total_time()).sample(1).xyz.value.take([0,1,2])
-    p_target_0 = ss_a.propagate(hohmann_maneuver.get_total_time()).sample(1).xyz.value.take([0,1,2])
-    p_target_1 = ss_a.propagate(hohmann_maneuver.get_total_time() + 1 * AstropyUnit.s).sample(1).xyz.value.take([0,1,2])
+    p_vessel_0 = ss_target.propagate(hohmann_maneuver.get_total_time()).sample(1)[1].xyz.value.take([0,1,2])
+    p_target_0 = ss_a.propagate(hohmann_maneuver.get_total_time()).sample(1)[1].xyz.value.take([0,1,2])
+    p_target_1 = ss_a.propagate(hohmann_maneuver.get_total_time() + 1 * AstropyUnit.s).sample(1)[1].xyz.value.take([0,1,2])
     v_target_0 = np.subtract(p_target_1, p_target_0)
     d_vessel_target_0 = np.subtract(p_vessel_0, p_target_0)
 
@@ -176,8 +176,10 @@ def hohmann_transfer_to_target(conn: Client) -> None:
     execute_next_node(conn)
 
 if __name__ == "__main__":
+    import os
     import krpc
-    conn = krpc.connect(name='hohman transfer')
+    krpc_address = os.environ["KRPC_ADDRESS"]
+    conn = krpc.connect(name='hohman transfer', address=krpc_address)
     hohmann_transfer_to_target(conn)
 
 
