@@ -23,6 +23,9 @@ def set_autostaging(conn: Client,
         return nothing, return when procedure finished
 
     """
+    global is_autostaging
+    is_autostaging = True
+
     dialog = StatusDialog(conn)
     vessel = conn.space_center.active_vessel
 
@@ -32,6 +35,7 @@ def set_autostaging(conn: Client,
 
     resources_of_stage = vessel.resources_in_decouple_stage(current_stage - 1)
 
+    #TODO: fairing like 0 resource stage handling
     resource_types_for_stage = []
     if liquid_fuel and resources_of_stage.has_resource("LiquidFuel"):
         resource_types_for_stage.append("LiquidFuel")
