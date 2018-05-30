@@ -170,7 +170,7 @@ def launch_into_orbit(conn: Client,
 
     vessel.auto_pilot.disengage()
 
-    execute_next_node(conn)
+    execute_next_node(conn, auto_stage=auto_stage)
 
     if post_circulization_stage:
         while vessel_current_stage(vessel) <= post_circulization_stage:
@@ -181,6 +181,8 @@ def launch_into_orbit(conn: Client,
     return
 
 if __name__ == "__main__":
+    import os
     import krpc
-    connnection = krpc.connect(name='Launch into orbit')
-    launch_into_orbit(connnection, 100000, 0)
+    krpc_address = os.environ["KRPC_ADDRESS"]
+    connnection = krpc.connect(name='Launch into orbit', address=krpc_address)
+    launch_into_orbit(connnection, 100000, 90, turn_start_alt=10000)
