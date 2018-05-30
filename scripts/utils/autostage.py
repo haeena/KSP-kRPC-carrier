@@ -49,12 +49,16 @@ def set_autostaging(conn: Client,
         solidfuel_unused_decoupled_in_next_stage = sum([ e.part.resources.amount("SolidFuel") for e in vessel.parts.engines if not e.active and e.part.resources.has_resource("SolidFuel") and e.part.decouple_stage == (current_stage - 1)])
         resource_types_for_stage.append("SolidFuel")
     if len(resource_types_for_stage) == 0:
+        # TODO: action here would be better to wait one or half sec then stage?
         return
 
     expression = conn.krpc.Expression
 
-    # TODO: first condtion must be stage activation by other mechanism
-    first_cond = True
+    call_current_stage = conn.get_call(getattr, vessel.control, "current_stage")
+    staging_condition = expression.not_equal(
+        expression.call(call_current_stage),
+        expression.constant_int(current_stage)
+    )
     for resource in resource_types_for_stage:
         resource_threashold = threashold
         if resource == "SolidFuel":
@@ -64,11 +68,7 @@ def set_autostaging(conn: Client,
                 conn.krpc.Expression.call(resource_amount_call),
                 conn.krpc.Expression.constant_float(resource_threashold)
             )
-        if first_cond:
-            first_cond = False
-            staging_condition = cond
-        else:
-            staging_condition = expression.or_(staging_condition, cond)
+        staging_condition = expression.or_(staging_condition, cond)
     
     staging_event = conn.krpc.add_event(staging_condition)
 
