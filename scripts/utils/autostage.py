@@ -6,7 +6,6 @@ from scripts.utils.status_dialog import StatusDialog
 
 is_autostaging = True
 staging_event = None
-staged_event = None
 
 def set_autostaging(conn: Client,
                     liquid_fuel: bool = True,
@@ -62,12 +61,11 @@ def set_autostaging(conn: Client,
     expression = conn.krpc.Expression
 
     call_current_stage = conn.get_call(getattr, vessel.control, "current_stage")
-    staged_condition = expression.not_equal(
+    staging_condition = expression.not_equal(
         expression.call(call_current_stage),
         expression.constant_int(current_stage)
     )
 
-    first_cond = True
     for resource in resource_types_for_stage:
         resource_threashold = threashold
         if resource == "SolidFuel":
@@ -77,24 +75,10 @@ def set_autostaging(conn: Client,
                 conn.krpc.Expression.call(resource_amount_call),
                 conn.krpc.Expression.constant_float(resource_threashold)
             )
-        if first_cond:
-            first_cond = False
-            staging_condition = cond
-        else:
-            staging_condition = expression.or_(staging_condition, cond)
+        staging_condition = expression.or_(staging_condition, cond)
 
-    global staged_event, staging_event
-    staged_event = conn.krpc.add_event(staged_condition)   
+    global staging_event
     staging_event = conn.krpc.add_event(staging_condition)
-
-    # TODO: global without lock
-    def staged():
-        global is_autostaging
-        remove_staging_events()
-        if not is_autostaging:
-            return
-
-        set_autostaging(conn, liquid_fuel, oxidizer, solid_fuel, threashold, stop_stage)
 
     # TODO: global without lock
     def auto_staging():
@@ -104,20 +88,19 @@ def set_autostaging(conn: Client,
             return
         dialog.status_update("Staging: stage {}".format(current_stage - 1))
 
-        vessel.control.activate_next_stage()
+        # check if stage triggered by somewhere else
+        if current_stage == vessel.control.current_stage:
+            vessel.control.activate_next_stage()
         set_autostaging(conn, liquid_fuel, oxidizer, solid_fuel, threashold, stop_stage)
 
-    staged_event.add_callback(staged)
-    staged_event.start()
     staging_event.add_callback(auto_staging)
     staging_event.start()
 
 def remove_staging_events():
-    global staging_event, staged_event
-    if staged_event:
-        staged_event.remove()
+    global staging_event
     if staging_event:
         staging_event.remove()
+        staging_event = None
 
 # TODO: global without lock
 def unset_autostaging():
