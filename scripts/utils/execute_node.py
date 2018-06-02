@@ -55,13 +55,13 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
 
     point_passed = False
     while remaining_delta_v() > 0.1 and not point_passed:
-        if vessel.available_thrust == 0:
+        a100 = vessel.available_thrust / vessel.mass
+        if a100 == 0:
             if auto_stage:
                 time.sleep(0.05)
                 continue    
             else:
                 break
-        a100 = vessel.available_thrust / vessel.mass
         throttle = max(0.05, min(1.0, remaining_delta_v() / a100))
         if throttle < 1.0:
             dialog.status_update("Fine tuning")
