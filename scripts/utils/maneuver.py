@@ -166,7 +166,7 @@ def circularize(conn: Client, node_ut: float):
 
     Args:
         conn: kRPC connection
-        at_ut: schedule burn at specific time
+        node_ut: schedule burn at specific time
 
     Returns:
         return nothing, return when procedure finished
