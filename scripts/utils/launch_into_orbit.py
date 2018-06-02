@@ -78,8 +78,7 @@ def launch_into_orbit(conn: Client,
     if auto_stage:
         set_autostaging(conn, stop_stage=stop_stage)
 
-    ## TODO: this assumes launch from equato
-    ascent_heading = (target_inc + 90) % 360
+    ascent_heading = (90 - target_inc) % 360
     vessel.auto_pilot.engage()
     vessel.auto_pilot.target_pitch_and_heading(90, ascent_heading)
 
@@ -166,9 +165,22 @@ def launch_into_orbit(conn: Client,
 
     return
 
+def warp_for_longtitude(conn: Client, longtitude: float):
+    dialog = StatusDialog(conn)
+
+    vessel = conn.space_center.active_vessel
+    body = vessel.orbit.body
+    current_longtitude = (body.rotation_angle * 180 / math.pi + vessel.flight().longitude) % 360
+    longtitude_ut = (longtitude - current_longtitude) % 360 / (body.rotational_speed * 180 / math.pi) + conn.space_center.ut
+
+    dialog.status_update("Waiting for launch timing")
+    lead_time = 5
+    conn.space_center.warp_to(longtitude_ut - lead_time)
+
 if __name__ == "__main__":
     import os
     import krpc
     krpc_address = os.environ["KRPC_ADDRESS"]
-    connnection = krpc.connect(name='Launch into orbit', address=krpc_address)
-    launch_into_orbit(connnection, 100000, 90, turn_start_alt=12000)
+    connection = krpc.connect(name='Launch into orbit', address=krpc_address)
+    warp_for_longtitude(connection, 205.8)
+    launch_into_orbit(connection, 100000, 95, turn_start_alt=18000, turn_end_alt=550000)
