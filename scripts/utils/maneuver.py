@@ -204,7 +204,7 @@ def change_apoapsis(conn: Client, node_ut: float, new_apoapsis_alt: float):
     Args:
         conn: kRPC connection
         new_apoapsis_alt: new apoapsis altitude
-        at_ut: schedule burn at specific time, if not specified burn at next periapsis
+        node_ut: schedule burn at specific time, if not specified burn at next periapsis
 
     Returns:
         return nothing, return when procedure finished
@@ -279,7 +279,7 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
     Args:
         conn: kRPC connection
         new_apoapsis_alt: new apoapsis altitude
-        at_ut: schedule burn at specific time, if not specified burn at next periapsis
+        node_ut: schedule burn at specific time, if not specified burn at next apoapsis
 
     Returns:
         return nothing, return when procedure finished
@@ -294,7 +294,7 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
     if not vessel.orbit.apoapsis < 0 and new_periapsis >= vessel.orbit.apoapsis:
         return
 
-    krpc_bodies, poliastro_bodies = krpc_poliastro_bodies()
+    krpc_bodies, poliastro_bodies = krpc_poliastro_bodies(conn)
 
     ut = conn.space_center.ut
 
