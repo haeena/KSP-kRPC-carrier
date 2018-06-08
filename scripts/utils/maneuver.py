@@ -244,7 +244,8 @@ def change_apoapsis(conn: Client, node_ut: float, new_apoapsis_alt: float):
             max_dv *= 2
             tmp_burn = max_dv * burn_vector * AstropyUnit.m / AstropyUnit.s
             tmp_maneuver = Maneuver((time_to_burn * AstropyUnit.s, tmp_burn))
-            tmp_new_ap = ss_i.apply_maneuver(tmp_maneuver).state.r_a.to(AstropyUnit.m).value
+            tmp_new_ss = ss_i.apply_maneuver(tmp_maneuver)
+            tmp_new_ap = abs(tmp_new_ss.state.r_a.to(AstropyUnit.m).value)
             if max_dv > 100000:
                 break
     else:
@@ -256,7 +257,8 @@ def change_apoapsis(conn: Client, node_ut: float, new_apoapsis_alt: float):
         tmp_dv = (max_dv + min_dv) / 2.0
         tmp_burn = tmp_dv * burn_vector * AstropyUnit.m / AstropyUnit.s
         tmp_maneuver = Maneuver((time_to_burn * AstropyUnit.s, tmp_burn))
-        tmp_new_ap = ss_i.apply_maneuver(tmp_maneuver).state.r_a.to(AstropyUnit.m).value
+        tmp_new_ss = ss_i.apply_maneuver(tmp_maneuver)
+        tmp_new_ap = abs(tmp_new_ss.state.r_a.to(AstropyUnit.m).value)
 
         if (is_raising and tmp_new_ap > new_apoapsis) or (not is_raising and tmp_new_ap < new_apoapsis):
             max_dv = tmp_dv
@@ -322,7 +324,8 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
             max_dv *= 2
             tmp_burn = max_dv * burn_vector * AstropyUnit.m / AstropyUnit.s
             tmp_maneuver = Maneuver((time_to_burn * AstropyUnit.s, tmp_burn))
-            tmp_new_pe = ss_i.apply_maneuver(tmp_maneuver).state.r_p.to(AstropyUnit.m).value
+            tmp_new_ss = ss_i.apply_maneuver(tmp_maneuver)
+            tmp_new_pe = abs(tmp_new_ss.state.r_p.to(AstropyUnit.m).value)
             if max_dv > 100000:
                 break
     else:
@@ -334,7 +337,8 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
         tmp_dv = (max_dv + min_dv) / 2.0
         tmp_burn = tmp_dv * burn_vector * AstropyUnit.m / AstropyUnit.s
         tmp_maneuver = Maneuver((time_to_burn * AstropyUnit.s, tmp_burn))
-        tmp_new_pe = ss_i.apply_maneuver(tmp_maneuver).state.r_p.to(AstropyUnit.m).value
+        tmp_new_ss = ss_i.apply_maneuver(tmp_maneuver)
+        tmp_new_pe = abs(tmp_new_ss.state.r_p.to(AstropyUnit.m).value)
 
         if (is_raising and tmp_new_pe > new_periapsis) or (not is_raising and tmp_new_pe < new_periapsis):
             max_dv = tmp_dv
@@ -354,10 +358,12 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
     execute_next_node(conn)
 
 if __name__ == "__main__":
+    import os
     import krpc
-    conn = krpc.connect(name='circularize at next apoapsis')
+    krpc_address = os.environ["KRPC_ADDRESS"]
+    conn = krpc.connect(name='maneuver', address=krpc_address)
     #circularize(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_apoapsis)
     #circularize(conn, conn.space_center.ut + 300)
 
-    #change_apoapsis(conn, conn.space_center.ut + 300, 240000)
-    change_periapsis(conn, conn.space_center.ut + 300, 30000)
+    change_apoapsis(conn, conn.space_center.ut + 300, 2863000)
+    #change_periapsis(conn, conn.space_center.ut + 300, 30000)
