@@ -31,6 +31,7 @@ class StatusDialog(object, metaclass=Singleton):
         text_status.size = 12
 
     def status_update(self, message):
+        # TODO: when active vessel switched, dialog window cleared, so re-create panel required
         status_line = "Status: {}".format(message)
         print(status_line)
         self.text_status.content = status_line
