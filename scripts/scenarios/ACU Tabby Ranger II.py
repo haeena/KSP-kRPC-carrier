@@ -23,8 +23,8 @@ def main():
     launch_into_orbit(conn, TARGET_ALTITUDE, TARGET_INCLINATION,
                     turn_start_alt = 15000, turn_end_alt = 45000)
 
-    # into transfer orbit
-    dialog.status_update("Into keo-synchronous transfer orbit")
+    # into KEO transfer orbit
+    dialog.status_update("Into KEO transfer orbit")
     change_apoapsis(conn, ut() + 300, 2863000)
 
     # separate relays
@@ -61,6 +61,7 @@ def main():
     # deploy solar panels
     for v in vessels_this_launch:
         conn.space_center.active_vessel = v
+        time.sleep(5)
         dialog.status_update("Deploying solar panels: {}".format(v.name))
         for p in v.parts.solar_panels:
             p.deployed = True
@@ -69,8 +70,9 @@ def main():
     # circularize
     for v in vessels_this_launch:
         conn.space_center.active_vessel = v
+        time.sleep(5)
         dialog.status_update("To final orbit: {}".format(v.name))
-        change_apoapsis(conn, ut() + 300, 2863000)
+        change_apoapsis(conn, ut() + v.orbit.time_to_periapsis, 2863000)
         circularize(conn, ut() + v.orbit.time_to_apoapsis)
         time.sleep(10)
 
