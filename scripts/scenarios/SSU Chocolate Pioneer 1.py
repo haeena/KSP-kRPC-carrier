@@ -1,3 +1,4 @@
+import os
 import math
 import time
 import krpc
@@ -6,7 +7,8 @@ turn_start_altitude = 250
 turn_end_altitude = 45000
 target_altitude = 150000
 
-conn = krpc.connect(name='Launch into orbit')
+krpc_address = os.environ["KRPC_ADDRESS"]
+conn = krpc.connect(name='Launch into orbit', address=krpc_address)
 vessel = conn.space_center.active_vessel
 
 # Set up streams for telemetry

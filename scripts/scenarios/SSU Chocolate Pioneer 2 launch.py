@@ -1,8 +1,9 @@
+import os
 import math
 import time
 import krpc
 
-TURN_START_ALTITUDE = 250
+TURN_START_ALTITUDE = 25000
 TURN_END_ALTITUDE = 45000
 TARGET_ALTITUDE = 90000
 ASCENT_HEADING = 0
@@ -13,7 +14,8 @@ def status_update(panel_text, message):
     panel_text.content = status_line
 
 def main():
-    conn = krpc.connect(name='Launch into orbit')
+    krpc_address = os.environ["KRPC_ADDRESS"]
+    conn = krpc.connect(name='Launch into orbit', address=krpc_address)
     vessel = conn.space_center.active_vessel
     obt_frame = vessel.orbit.body.non_rotating_reference_frame
     srf_frame = vessel.orbit.body.reference_frame
