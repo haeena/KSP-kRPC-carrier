@@ -11,13 +11,15 @@ from scripts.utils.autostage import set_autostaging, unset_autostaging
 def launch_into_orbit(conn: Client,
                       target_alt: float, target_inc: float,
                       turn_start_alt: float = 250, turn_end_alt: float = 45000,
-                      auto_launch: bool = True,
-                      auto_stage: bool = True, stop_stage: int = 0,
+                      auto_launch: bool = True, auto_stage: bool = True,
+                      stop_stage: int = 0,
                       pre_circulization_stage: int = None,
                       post_circulization_stage: int = None,
                       skip_circulization: bool = False,
                       use_rcs_on_ascent: bool = False,
-                      use_rcs_on_circulization: bool = False
+                      use_rcs_on_circulization: bool = False,
+                      deploy_panel_atm_exit: bool = True,
+                      deploy_panel_stage: int = None
                      ) -> None:
     """Lunch active vessel into orbit.
 
@@ -35,6 +37,8 @@ def launch_into_orbit(conn: Client,
         skip_circulization: skip circulization after ascent
         use_rcs_on_ascent: turn on rcs during ascent
         use_rcs_on_circulization: turn on rcs during circulization
+        deploy_panel_atm_exit: deploy solar/radiator panels after atm exit
+        deploy_panel_stage: deploy solar/radiator panels delayed on stage
 
     Returns:
         return nothing, return when procedure finished
@@ -73,8 +77,6 @@ def launch_into_orbit(conn: Client,
             dialog.status_update("Ready to launch")
 
     # Main ascent loop
-
-    ## setup autostaging
     if auto_stage:
         set_autostaging(conn, stop_stage=stop_stage)
 
@@ -135,6 +137,9 @@ def launch_into_orbit(conn: Client,
         while vessel.control.current_stage <= pre_circulization_stage:
             vessel.control.activate_next_stage()
 
+    if deploy_panel_atm_exit:
+        deploy_panels(conn)
+
     if skip_circulization:
         return
 
@@ -164,6 +169,15 @@ def launch_into_orbit(conn: Client,
     dialog.status_update("Launch complete")
 
     return
+
+def deploy_panels(conn: Client):
+    vessel = conn.space_center.active_vessel
+    dialog = StatusDialog(conn)
+
+    dialog.status_update("Deploying solar/radiator panels: {}".format(v.name))
+    for panel in vessel.parts.solar_panels + vessel.parts.radiators:
+        if panel.deployable:
+            panel.deployed = True    
 
 def warp_for_longtitude(conn: Client, longtitude: float):
     dialog = StatusDialog(conn)
