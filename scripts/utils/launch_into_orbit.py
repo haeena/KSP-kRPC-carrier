@@ -174,7 +174,7 @@ def deploy_panels(conn: Client):
     vessel = conn.space_center.active_vessel
     dialog = StatusDialog(conn)
 
-    dialog.status_update("Deploying solar/radiator panels: {}".format(v.name))
+    dialog.status_update("Deploying solar/radiator panels")
     for panel in vessel.parts.solar_panels + vessel.parts.radiators:
         if panel.deployable:
             panel.deployed = True    
