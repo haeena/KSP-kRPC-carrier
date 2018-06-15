@@ -8,30 +8,16 @@ Vessel = NewType("Vessel", object)
 Body = NewType("Body", object)
 
 from krpc.client import Client
+
+from scripts.utils.utils import *
 from scripts.utils.status_dialog import StatusDialog
 from scripts.utils.execute_node import execute_next_node
 from scripts.utils.krpc_poliastro import krpc_poliastro_bodies
 from scripts.utils.maneuver import prograde_vector_at_ut
 
-import numpy as np
-from numpy.linalg import norm
-
 from astropy import units as AstropyUnit
 from poliastro.twobody import Orbit as PoliastroOrbit
 from poliastro.maneuver import Maneuver
-
-def unit_vector(vector):
-    return vector / norm(vector)
-
-def dot(v1, v2):
-    v1_u = unit_vector(v1)
-    v2_u = unit_vector(v2)
-    return np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)
-
-def angle_between(v1, v2):
-    v1_u = unit_vector(v1)
-    v2_u = unit_vector(v2)
-    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
 def hohmann_transfer_to_target_at_ut(conn: Client, vessel: Vessel, target: Union[Vessel, Body],
                                      ct: float, node_ut: float, trans_time: float = 0
