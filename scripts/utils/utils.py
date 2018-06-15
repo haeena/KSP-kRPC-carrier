@@ -1,10 +1,10 @@
 import numpy as np
 
-def norm(vector):
-    return np.linalg.norm(vector)
+def norm(v):
+    return np.linalg.norm(v)
 
-def unit_vector(vector):
-    return vector / norm(vector)
+def unit_vector(v):
+    return vector / norm(v)
 
 def dot(v1, v2):
     v1_u = unit_vector(v1)
@@ -12,6 +12,17 @@ def dot(v1, v2):
     return np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)
 
 def angle_between(v1, v2):
+ """Calculate angle between two vector.
+
+    Extended description of function.
+
+    Args:
+        v1: vector
+        v2: vector
+
+    Returns:
+        radian between two vector
+    """
     v1_u = unit_vector(v1)
     v2_u = unit_vector(v2)
     return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
