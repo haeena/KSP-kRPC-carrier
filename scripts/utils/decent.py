@@ -120,8 +120,8 @@ def vertical_landing(conn: Client,
             break
 
     last_ut = ut()
-
-    # Main decent loop
+    
+    # wait for burn loop
     while True:
         a100 = available_thrust() / mass()
         bounding_box = vessel.bounding_box(vessel.surface_reference_frame)
@@ -133,44 +133,63 @@ def vertical_landing(conn: Client,
         if lead_time and lead_time > (ut() - last_ut)*1.5+2:
             dialog.status_update("Wait for decereration burn: {: 5.3f} sec)".format(lead_time))
             vessel.control.throttle = 0
-            time.sleep(0.1)
         else:
-            dialog.status_update("Alt: {: 5.3f}, Speed {: 5.3f} m/s (H: {: 5.3f}, V: {: 5.3f}), "\
-                                 "a: {: 5.3f}, g: {: 5.3f}, "\
-                                 "landing in: {: 5.3f} sec, burn lead time: {: 5.3f} sec"\
-                                 "".format(altitude(), speed(), horizontal_speed(), vertical_speed(),
-                                 a100, surface_gravity,
-                                 land_time, lead_time)
-                                )
+            break
+        last_ut = ut()
+        time.sleep(0.1)
 
-            if use_sas:
-                if (horizontal_speed() > 0.5 or horizontal_speed() / speed() > 0.9) and last_sas_mode != vessel.control.sas_mode.retrograde:
-                    vessel.control.sas_mode = vessel.control.sas_mode.retrograde
-                    last_sas_mode = vessel.control.sas_mode.retrograde
-                elif last_sas_mode != vessel.control.sas_mode.radial:
-                    vessel.control.sas_mode = vessel.control.sas_mode.radial
-                    last_sas_mode = vessel.control.sas_mode.radial
-            else:
-                # TODO: auto-pilot
-                pass
+    # Main decent loop
+    while True:
+        a100 = available_thrust() / mass()
+        bounding_box = vessel.bounding_box(vessel.surface_reference_frame)
+        lower_bound = bounding_box[0][0]
+        landing_alt = altitude() + lower_bound
 
-            if landing_alt >= landing_speed/2 or not max([False] + [ l.is_grounded for l in vessel.parts.legs ]):
-                target_speed = max(landing_speed, landing_alt / 5)
-                throttle = max(0, min(1.0, (( speed() - target_speed ) + surface_gravity) / a100))
-                vessel.control.throttle = throttle
-            else:
-                vessel.control.sas_mode.radial
-                vessel.control.throttle = 0
-                break
+        land_time, lead_time = landing_time_prediction(landing_alt, vertical_speed(), surface_gravity, a100, landing_speed)
+
+        dialog.status_update("Alt: {: 5.3f}, Speed {: 5.3f} m/s (H: {: 5.3f}, V: {: 5.3f}), "\
+                                "a: {: 5.3f}, g: {: 5.3f}, "\
+                                "landing in: {: 5.3f} sec, burn lead time: {: 5.3f} sec"\
+                                "".format(altitude(), speed(), horizontal_speed(), vertical_speed(),
+                                a100, surface_gravity,
+                                land_time, lead_time)
+                            )
+
+        if use_sas:
+            if (horizontal_speed() > 0.5 or horizontal_speed() / speed() > 0.9) and last_sas_mode != vessel.control.sas_mode.retrograde:
+                vessel.control.sas_mode = vessel.control.sas_mode.retrograde
+                last_sas_mode = vessel.control.sas_mode.retrograde
+            elif last_sas_mode != vessel.control.sas_mode.radial:
+                vessel.control.sas_mode = vessel.control.sas_mode.radial
+                last_sas_mode = vessel.control.sas_mode.radial
+        else:
+            # TODO: auto-pilot
+            pass
+
+        if landing_alt >= landing_speed/2 or not max([False] + [ l.is_grounded for l in vessel.parts.legs ]):
+            target_speed = max(landing_speed, landing_alt / 5)
+            throttle = max(0, min(1.0, (( speed() - target_speed ) + surface_gravity) / a100))
+            vessel.control.throttle = throttle
+        else:
+            vessel.control.sas_mode.radial
+            vessel.control.throttle = 0
+            break
         last_ut = ut()
 
-    if not use_sas:
+    dialog.status_update("Landed")
+
+    # keep sas on for a bit to maintain landing stability
+    time.sleep(5)
+
+    if use_sas:
+        vessel.control.sas = False
+    else:
         vessel.auto_pilot.disengage() 
 
     if auto_stage:
         unset_autostaging()
 
-    dialog.status_update("Landed")
+
 
     return
 
