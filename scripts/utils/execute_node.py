@@ -3,6 +3,7 @@ import math
 from functools import reduce
 
 from krpc.client import Client
+from scripts.utils.utils import *
 from scripts.utils.status_dialog import StatusDialog
 from scripts.utils.autostage import set_autostaging, unset_autostaging
 
@@ -14,9 +15,20 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
         return
     node = nodes[0]
 
+    ## check manuever hold capability
+    use_sas = False
+    try:
+        vessel.control.sas = True
+        vessel.control.sas_mode = vessel.control.sas_mode.maneuver
+        use_sas = True
+    except:
+        pass        
+    vessel.control.sas = False
+
     ## setup dialog and streams
     dialog = StatusDialog(conn)
     ut = conn.add_stream(getattr, conn.space_center, 'ut')
+    direction = conn.add_stream(getattr, vessel.flight(node.reference_frame), 'direction')
 
     ## setup autostaging
     if auto_stage:
@@ -32,10 +44,16 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
 
     # Orientate ship
     dialog.status_update("Orientating ship for next burn")
-    vessel.auto_pilot.engage()
-    vessel.auto_pilot.reference_frame = node.reference_frame
-    vessel.auto_pilot.target_direction = (0, 1, 0)
-    vessel.auto_pilot.wait()
+    if use_sas:
+        vessel.control.sas = True
+        vessel.control.sas_mode = vessel.control.sas_mode.maneuver
+        while angle_between(direction(), (0,1,0)) > 5/180 * math.pi:
+            time.sleep(0.1)
+    else:
+        vessel.auto_pilot.engage()
+        vessel.auto_pilot.reference_frame = node.reference_frame
+        vessel.auto_pilot.target_direction = (0, 1, 0)
+        vessel.auto_pilot.wait()
 
     # Wait until burn
     dialog.status_update("Waiting until burn time")
@@ -77,6 +95,9 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     if auto_stage:
         unset_autostaging()
 
+    vessel.control.sas = True
+    time.sleep(1)
+    vessel.control.sas = False
     vessel.auto_pilot.disengage()
 
     return
