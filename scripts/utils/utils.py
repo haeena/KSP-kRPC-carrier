@@ -4,7 +4,7 @@ def norm(v):
     return np.linalg.norm(v)
 
 def unit_vector(v):
-    return vector / norm(v)
+    return v / norm(v)
 
 def dot(v1, v2):
     v1_u = unit_vector(v1)
@@ -12,7 +12,7 @@ def dot(v1, v2):
     return np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)
 
 def angle_between(v1, v2):
- """Calculate angle between two vector.
+    """Calculate angle between two vector.
 
     Extended description of function.
 
