@@ -15,6 +15,7 @@ from scripts.utils.execute_node import execute_next_node
 from scripts.utils.krpc_poliastro import krpc_poliastro_bodies
 from scripts.utils.maneuver import prograde_vector_at_ut
 
+from astropy import time
 from astropy import units as AstropyUnit
 from poliastro.twobody import Orbit as PoliastroOrbit
 from poliastro.maneuver import Maneuver
@@ -48,13 +49,14 @@ def hohmann_transfer_to_target_at_ut(conn: Client, vessel: Vessel, target: Union
     time_to_burn = node_ut - ct
 
     krpc_bodies, poliastro_bodies = krpc_poliastro_bodies(conn)
+    start_time_poliastro = time.Time(node_ut, format="gps")
 
     r_v_ct = vessel.position(reference_frame) * AstropyUnit.m
     v_v_ct = vessel.velocity(reference_frame) * AstropyUnit.m / AstropyUnit.s
-    ss_v_ct = PoliastroOrbit.from_vectors(poliastro_bodies[attractor.name], r_v_ct, v_v_ct)
+    ss_v_ct = PoliastroOrbit.from_vectors(poliastro_bodies[attractor.name], r_v_ct, v_v_ct, epoch=start_time_poliastro)
     r_target = target.position(reference_frame) * AstropyUnit.m
     v_target = target.velocity(reference_frame) * AstropyUnit.m / AstropyUnit.s
-    ss_target = PoliastroOrbit.from_vectors(poliastro_bodies[attractor.name], r_target, v_target)
+    ss_target = PoliastroOrbit.from_vectors(poliastro_bodies[attractor.name], r_target, v_target, epoch=start_time_poliastro)
 
     ss_i = ss_v_ct.propagate(time_to_burn * AstropyUnit.s)
     r_f = target.orbit.radius_at(node_ut + trans_time) * AstropyUnit.m
@@ -65,13 +67,18 @@ def hohmann_transfer_to_target_at_ut(conn: Client, vessel: Vessel, target: Union
     trans_time = hohmann_maneuver.get_total_time().value
     ss_a, ss_f = ss_i.apply_maneuver(hohmann_maneuver, intermediate=True)
 
-    p_vessel_0 = ss_target.propagate(hohmann_maneuver.get_total_time()).sample(1)[1].xyz.value.take([0,1,2])
-    p_target_0 = ss_a.propagate(hohmann_maneuver.get_total_time()).sample(1)[1].xyz.value.take([0,1,2])
-    p_target_1 = ss_a.propagate(hohmann_maneuver.get_total_time() + 1 * AstropyUnit.s).sample(1)[1].xyz.value.take([0,1,2])
-    v_target_0 = np.subtract(p_target_1, p_target_0)
-    d_vessel_target_0 = np.subtract(p_vessel_0, p_target_0)
+    end_time_poliastro = time.Time(node_ut + trans_time, format="gps")
+    end_time_1secb4_poliastro = time.Time(node_ut + trans_time - 1, format="gps")
 
-    phase_angle = math.copysign(angle_between(p_vessel_0, p_target_0), dot(d_vessel_target_0, v_target_0))
+    ss_a_sample = ss_a.sample([start_time_poliastro, end_time_1secb4_poliastro, end_time_poliastro])
+    s_v_final = ss_a_sample[-1][-1]
+    s_v_final_prev = ss_a_sample[-1][-2]
+    v_v_final = np.subtract(s_v_final, s_v_final_prev)
+    s_target_sample = ss_target.sample([start_time_poliastro, end_time_poliastro])
+    s_target_final = s_target_sample[-1][-1]
+    s_vt_final_d = np.subtract(s_v_final, s_target_final)
+
+    phase_angle = math.copysign(angle_between(s_v_final.xyz.value, s_target_final.xyz.value), dot(v_v_final.xyz.value, s_vt_final_d.xyz.value))
 
     return (dv_a, dv_b, trans_time, phase_angle)
 
