@@ -357,6 +357,48 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
     # instead of just executing node, dynamically update direction
     execute_next_node(conn)
 
+def match_plane_with_target(conn: Client):
+    """match plane with target
+
+    Extended description here
+
+    Args:
+        conn: kRPC connection
+
+    Returns:
+        return nothing, return when procedure finished
+    """
+    vessel = conn.space_center.active_vessel
+    target = conn.space_center.target_vessel
+    if not target:
+        target = conn.space_center.target_body
+    if not target:
+        return
+
+    v_orbit = vessel.orbit 
+    t_orbit = target.orbit
+
+    # find sooner timing
+    ut_an = v_orbit.ut_at_true_anomaly(v_orbit.true_anomaly_at_an(t_orbit))
+    ut_dn = v_orbit.ut_at_true_anomaly(v_orbit.true_anomaly_at_dn(t_orbit))
+    if ut_an < ut_dn:
+        ascending = True
+        node_ut = ut_an
+    else: 
+        ascending = False
+        node_ut = ut_dn
+
+    # calculate plane change burn
+    speed_at_node = v_orbit.orbital_speed_at(node_ut)
+    rel_inc = v_orbit.relative_inclination(t_orbit)
+    normal = speed_at_node * math.sin(rel_inc)
+    prograde = speed_at_node * math.cos(rel_inc) - speed_at_node
+    if ascending:
+        normal *= -1
+    
+    node = vessel.control.add_node(node_ut, normal=normal, prograde=prograde)
+    execute_next_node(conn)
+
 if __name__ == "__main__":
     import os
     import krpc
@@ -364,6 +406,7 @@ if __name__ == "__main__":
     conn = krpc.connect(name='maneuver', address=krpc_address)
     #circularize(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_apoapsis)
     #circularize(conn, conn.space_center.ut + 300)
-
-    change_apoapsis(conn, conn.space_center.ut + 300, 2863000)
     #change_periapsis(conn, conn.space_center.ut + 300, 30000)
+    change_apoapsis(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_periapsis, 2863000)
+    circularize(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_apoapsis)
+    
