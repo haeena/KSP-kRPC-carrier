@@ -11,7 +11,8 @@ from scripts.utils.autostage import set_autostaging, unset_autostaging
 def launch_into_orbit(conn: Client,
                       target_alt: float, target_inc: float,
                       turn_start_alt: float = 250, turn_end_alt: float = 45000,
-                      auto_launch: bool = True, auto_stage: bool = True,
+                      auto_launch: bool = True,
+                      auto_stage: bool = True,
                       stop_stage: int = 0,
                       pre_circulization_stage: int = None,
                       post_circulization_stage: int = None,
@@ -47,19 +48,14 @@ def launch_into_orbit(conn: Client,
     vessel = conn.space_center.active_vessel
     body = vessel.orbit.body
 
-    obt_frame = vessel.orbit.body.non_rotating_reference_frame
-    srf_frame = vessel.orbit.body.reference_frame
-
-    atomosphere_depth = body.atmosphere_depth
-
     # Set up dialog
     dialog = StatusDialog(conn)
 
     # Set up streams for telemetry
     ut = conn.add_stream(getattr, conn.space_center, 'ut')
+    atomosphere_depth = body.atmosphere_depth
     altitude = conn.add_stream(getattr, vessel.flight(), 'mean_altitude')
     apoapsis = conn.add_stream(getattr, vessel.orbit, 'apoapsis_altitude')
-    time_to_apoapsis = conn.add_stream(getattr, vessel.orbit, 'time_to_apoapsis')
 
     # Pre-launch setup
     vessel.control.sas = True
@@ -155,8 +151,7 @@ def launch_into_orbit(conn: Client,
     v1 = math.sqrt(mu*((2./r)-(1./a1)))
     v2 = math.sqrt(mu*((2./r)-(1./a2)))
     delta_v = v2 - v1
-    node = vessel.control.add_node(
-        ut() + vessel.orbit.time_to_apoapsis, prograde=delta_v)
+    node = vessel.control.add_node(ut() + vessel.orbit.time_to_apoapsis, prograde=delta_v)
 
     vessel.auto_pilot.disengage()
 
