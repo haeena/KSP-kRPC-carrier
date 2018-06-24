@@ -8,46 +8,41 @@ from scripts.utils.status_dialog import StatusDialog
 from scripts.utils.execute_node import execute_next_node
 from scripts.utils.autostage import set_autostaging, unset_autostaging
 
-def landing_time_prediction(altitude: float, vertical_speed: float, horizontal_speed: float,
-                            surface_gravity: float, acceleration: float = None, landing_speed: float = 5.0):
-    dt = 1.0
-    land_time = 0
-    t_max = 10000
-    sim_alt = altitude
-    v = vertical_speed
-    g = surface_gravity
+def impact_prediction(radius: float, altitude: float,
+                      vertical_speed: float, horizontal_speed: float,
+                      surface_gravity: float):
+    """impact_prediction
 
-    # if land less than 30 sec, do more precise prediction
-    precise_dt_threashold = 30
-    if altitude + (vertical_speed - g * precise_dt_threashold) * precise_dt_threashold < 0:
-        dt = 0.1
+    Extended description of function.
 
-    alt_change = 0
-    while land_time < t_max:
-        alt_change = (v - g * land_time / 2) * land_time
-        if altitude + alt_change < 0:
-            break
-        land_time = land_time + dt
+    Args:
+        radius: current radius from center of body 
+        altitude: surface altitude
+        vertical_speed: vertical speed
+        horizontal_speed: horizontal speed
+        surface_gravity: surface gravity
 
-    if land_time >= t_max:
-        # not land
-        return None
-    
-    if not acceleration:
-        return land_time, 0
+    Returns:
+        return None if not impact
+        return (seconds_until_impact, terminal_speed)
+    """
+    fall_speed = -vertical_speed
+    downward_acceleration = surface_gravity - horizontal_speed * horizontal_speed / radius
 
-    # TODO: this inaccurate
-    # we might refer better burn time https://github.com/KSPSnark/BetterBurnTime/
+    # do we land?
+    if downward_acceleration < 0:
+        max_fall_distance = -(fall_speed * fall_speed) / (2.0 * downward_acceleration)
+        if max_fall_distance < (altitude + 1.0):
+            return None
 
-    terminal_v_speed = g * land_time
-    diff_v_speed = terminal_v_speed - landing_speed
-    deceration_time_v = diff_v_speed / ( acceleration - g )
-    deceration_time_h = horizontal_speed / acceleration
+    sec_until_impact = (-fall_speed + math.sqrt(fall_speed * fall_speed + 2.0 * downward_acceleration * altitude)) / downward_acceleration
 
-    if diff_v_speed < 0:
-        return land_time, land_time - deceration_time_h
-    lead_time = max(0, land_time - deceration_time_h - deceration_time_v)
-    return land_time, lead_time
+    vertical_speed_at_impact = fall_speed + sec_until_impact * downward_acceleration
+    impact_speed = math.sqrt(vertical_speed_at_impact * vertical_speed_at_impact + horizontal_speed * horizontal_speed);
+    return sec_until_impact, impact_speed
+
+def burn_prediction(delta_v: float, acceleration: float):
+    return delta_v / acceleration
 
 def vertical_landing(conn: Client,
                      landing_speed: float = 5.0,
@@ -73,7 +68,6 @@ def vertical_landing(conn: Client,
 
     Returns:
         return nothing, return when procedure finished
-
     """
     vessel = conn.space_center.active_vessel
 
@@ -98,6 +92,7 @@ def vertical_landing(conn: Client,
     ut = conn.add_stream(getattr, conn.space_center, 'ut')
     mass = conn.add_stream(getattr, vessel, 'mass')
     available_thrust = conn.add_stream(getattr, vessel, 'available_thrust')
+    radius = conn.add_stream(getattr, vessel.orbit, 'radius')
     altitude = conn.add_stream(getattr, flight, 'surface_altitude')
     speed = conn.add_stream(getattr, flight, 'speed')
     vertical_speed = conn.add_stream(getattr, flight, 'vertical_speed')
@@ -144,16 +139,17 @@ def vertical_landing(conn: Client,
         lower_bound = bounding_box[0][0]
         landing_alt = altitude() + lower_bound
 
-        land_time, lead_time = landing_time_prediction(landing_alt, vertical_speed(), horizontal_speed(),
-                                                       surface_gravity, a100, landing_speed)
+        sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
+        burn_time = burn_prediction(terminal_speed, a100)
+        burn_lead_time = sec_until_impact - burn_time
 
-        if lead_time and lead_time !=0 and lead_time > (ut() - last_ut)*1.5+2 and (land_time - lead_time) / land_time < 0.5:
-            if lead_time > 30:
-                dialog.status_update("Warp for decereration burn: {: 5.3f} - 30 sec; ut: {: 5.3f}".format(lead_time, ut()))
-                conn.space_center.warp_to(ut() + lead_time - 30)
+        if burn_lead_time and burn_lead_time !=0 and burn_lead_time > (ut() - last_ut)*1.5+2:
+            if burn_lead_time > 30:
+                dialog.status_update("Warp for decereration burn - 30sec: {: 5.3f}".format(burn_lead_time, ut()))
+                conn.space_center.warp_to(ut() + burn_lead_time - 30)
                 time.sleep(5)
             else:
-                dialog.status_update("Wait for decereration burn: {: 5.3f} sec; ut: {: 5.3f}".format(lead_time, ut()))
+                dialog.status_update("Wait for decereration burn: {: 5.3f} sec; ut: {: 5.3f}".format(burn_lead_time, ut()))
         else:
             break
         last_ut = ut()
@@ -196,14 +192,16 @@ def vertical_landing(conn: Client,
         lower_bound = bounding_box[0][0]
         landing_alt = altitude() + lower_bound
 
-        land_time, lead_time = landing_time_prediction(landing_alt, vertical_speed(), surface_gravity, a100, landing_speed)
+        sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
+        burn_time = burn_prediction(terminal_speed, a100)
+        burn_lead_time = sec_until_impact - burn_time
 
         dialog.status_update("Alt: {: 5.3f}, Speed {: 5.3f} m/s (H: {: 5.3f}, V: {: 5.3f}), "\
-                                "a: {: 5.3f}, g: {: 5.3f}, "\
-                                "landing in: {: 5.3f} sec, burn lead time: {: 5.3f} sec"\
-                                "".format(altitude(), speed(), horizontal_speed(), vertical_speed(),
-                                a100, surface_gravity,
-                                land_time, lead_time)
+                             "a: {: 5.3f}, g: {: 5.3f}, "\
+                             "landing in: {: 5.3f} sec, burn lead time: {: 5.3f} sec"\
+                             "".format(altitude(), speed(), horizontal_speed(), vertical_speed(),
+                                       a100, surface_gravity,
+                                       sec_until_impact, burn_lead_time)
                             )
 
         if use_sas:
