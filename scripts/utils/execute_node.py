@@ -47,7 +47,7 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     if use_sas:
         vessel.control.sas = True
         vessel.control.sas_mode = vessel.control.sas_mode.maneuver
-        while angle_between(direction(), (0,1,0)) > 5/180 * math.pi:
+        while angle_between(direction(), (0,1,0)) > 0.5/180 * math.pi:
             time.sleep(0.1)
     else:
         vessel.auto_pilot.engage()
@@ -71,6 +71,7 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     remaining_delta_v = conn.add_stream(getattr, node, "remaining_delta_v")
     min_delta_v = remaining_delta_v()        
 
+    state_fine_tuning = False
     point_passed = False
     while remaining_delta_v() > 0.1 and not point_passed:
         a100 = vessel.available_thrust / vessel.mass
@@ -82,7 +83,9 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
                 break
         throttle = max(0.05, min(1.0, remaining_delta_v() / a100))
         if throttle < 1.0:
-            dialog.status_update("Fine tuning")
+            if not state_fine_tuning:
+                dialog.status_update("Fine tuning")
+                state_fine_tuning = True
         vessel.control.throttle = throttle
         if min_delta_v < remaining_delta_v():
             point_passed = True

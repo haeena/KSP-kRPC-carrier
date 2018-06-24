@@ -86,12 +86,17 @@ def launch_into_orbit(conn: Client,
     raise_apoapsis_last_apoapsis = apoapsis()
     raise_apoapsis_last_ut = ut()
 
+    state_gravity_turn = False
+    state_approach_target_ap = False
+    state_coasting_out_of_atm = False
     while True:
         if apoapsis() <= target_alt*0.9:
             vessel.control.throttle = 1
             # Gravity turn
             if altitude() > turn_start_alt and altitude() < turn_end_alt:
-                dialog.status_update("Gravity turn")
+                if not state_gravity_turn:
+                    dialog.status_update("Gravity turn")
+                    state_gravity_turn = True
 
                 frac = ((altitude() - turn_start_alt) /
                         (turn_end_alt - turn_start_alt))
@@ -102,7 +107,9 @@ def launch_into_orbit(conn: Client,
 
         # Decrease throttle when approaching target apoapsis
         elif apoapsis() < target_alt:
-            dialog.status_update("Approaching target apoapsis")
+            if not state_approach_target_ap:
+                dialog.status_update("Approaching target apoapsis")
+                state_approach_target_ap = True
             vessel.auto_pilot.target_pitch_and_heading(0, ascent_heading)
             try:
                 instant_rate_per_throttle = (apoapsis() - raise_apoapsis_last_apoapsis) / ((ut() - raise_apoapsis_last_ut) * raise_apoapsis_last_throttle)
@@ -116,7 +123,9 @@ def launch_into_orbit(conn: Client,
         else:
             vessel.control.throttle = 0
             if altitude() < atomosphere_depth:
-                dialog.status_update("Coasting out of atmosphere")
+                if not state_coasting_out_of_atm:
+                    dialog.status_update("Coasting out of atmosphere")
+                    state_coasting_out_of_atm = True
             else:
                 break
 

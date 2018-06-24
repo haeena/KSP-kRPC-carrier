@@ -368,6 +368,10 @@ def match_plane_with_target(conn: Client):
     Returns:
         return nothing, return when procedure finished
     """
+    # Set up dialog
+    dialog = StatusDialog(conn)
+
+    # check target
     vessel = conn.space_center.active_vessel
     target = conn.space_center.target_vessel
     if not target:
@@ -396,6 +400,9 @@ def match_plane_with_target(conn: Client):
     if ascending:
         normal *= -1
     
+    node_desc = "ascending node" if ascending else "decending node"
+    dialog.status_update("Match plane with {} on {} (ut: {: .2f})".format(target.name, node_desc, node_ut))
+
     node = vessel.control.add_node(node_ut, normal=normal, prograde=prograde)
     execute_next_node(conn)
 
