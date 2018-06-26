@@ -40,7 +40,7 @@ def velocity_at_ut(orbit: Orbit, at_ut: float, reference_frame: ReferenceFrame =
         reference_frame: reference_frame to be used
 
     Returns:
-        return velocity unit vector
+        return velocity vector
     """
     if not reference_frame:
         attractor = orbit.body
@@ -104,7 +104,7 @@ def normal_vector_at_ut(orbit: Orbit, at_ut: float, reference_frame: ReferenceFr
         reference_frame: reference_frame to be used
 
     Returns:
-        return anti-radial unit vector
+        return normal unit vector
     """
     if not reference_frame:
         attractor = orbit.body
@@ -329,8 +329,8 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
             if max_dv > 100000:
                 break
     else:
-        # orbital speed should be max_dv for lowering periapsis
-        max_dv = norm(velocity_at_ut(vessel.orbit, node_ut, reference_frame))
+        # horizontal speed should be max_dv for lowering periapsis
+        max_dv = vessel.flight(reference_frame).horizontal_speed
 
     # binary search
     while max_dv - min_dv > 0.01:
@@ -353,7 +353,7 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
 
     node = vessel.control.add_node(node_ut, prograde=dv_prograde, radial=dv_anti_radial, normal=dv_normal)
 
-    # TODO: replace this logic to burn for dynamic change apoapsis?
+    # TODO: replace this logic to burn for dynamic change periapsis?
     # instead of just executing node, dynamically update direction
     execute_next_node(conn)
 
@@ -413,7 +413,7 @@ if __name__ == "__main__":
     conn = krpc.connect(name='maneuver', address=krpc_address)
     #circularize(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_apoapsis)
     #circularize(conn, conn.space_center.ut + 300)
-    #change_periapsis(conn, conn.space_center.ut + 300, 30000)
-    change_apoapsis(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_periapsis, 2863000)
-    circularize(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_apoapsis)
+    change_periapsis(conn, conn.space_center.ut + 300, 30000)
+    #change_apoapsis(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_periapsis, 2863000)
+    #circularize(conn, conn.space_center.ut + conn.space_center.active_vessel.orbit.time_to_apoapsis)
     
