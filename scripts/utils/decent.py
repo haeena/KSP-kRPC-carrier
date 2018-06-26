@@ -107,32 +107,10 @@ def vertical_landing(conn: Client,
         set_autostaging(conn, stop_stage=stop_stage)
 
     # kill horizontal velocity
-    dialog.status_update("kill horizontal velocity")
-    if use_sas:
-        vessel.control.sas = True
-        vessel.control.sas_mode = vessel.control.sas_mode.retrograde
-        while angle_between(vessel.flight(vessel.surface_velocity_reference_frame).direction,(0,-1,0)) > 5/180 * math.pi:
-            time.sleep(0.1)
-    else:
-        vessel.auto_pilot.engage()
-        vessel.auto_pilot.reference_frame = vessel.surface_velocity_reference_frame
-        vessel.auto_pilot.target_direction = (0, -1, 0)
-        vessel.auto_pilot.wait()
-
-    while True:
-        a100 = available_thrust() / mass()
-        dialog.status_update("Kill horizontal velocity: Alt: {: 5.3f}, Speed {: 5.3f} m/s (H: {: 5.3f}, V: {: 5.3f})"\
-                             "".format(altitude(), speed(), horizontal_speed(), vertical_speed()))
-
-        if horizontal_speed() > 0.1:
-            vessel.control.throttle = max(0, min(1.0, speed() / a100))
-        else:
-            vessel.control.throttle = 0
-            break
-
-    last_ut = ut()
+    kill_horizontal_velocity(conn, use_sas)
 
     # wait for burn loop
+    last_ut = ut()
     while True:
         a100 = available_thrust() / mass()
         bounding_box = vessel.bounding_box(vessel.surface_reference_frame)
@@ -162,27 +140,7 @@ def vertical_landing(conn: Client,
         retract_panels(conn)
 
     # kill horizontal velocity again
-    dialog.status_update("kill horizontal velocity again")
-    if use_sas:
-        vessel.control.sas = True
-        last_sas_mode = vessel.control.sas_mode.retrograde
-        while angle_between(vessel.flight(vessel.surface_velocity_reference_frame).direction,(0,-1,0)) > 5/180 * math.pi:
-            time.sleep(0.1)
-    else:
-        vessel.auto_pilot.engage()
-        vessel.auto_pilot.reference_frame = vessel.surface_velocity_reference_frame
-        vessel.auto_pilot.target_direction = (0, -1, 0)
-        vessel.auto_pilot.wait()
-
-    while True:
-        a100 = available_thrust() / mass()
-        dialog.status_update("Kill horizontal velocity again: Alt: {: 5.3f}, Speed {: 5.3f} m/s (H: {: 5.3f}, V: {: 5.3f})".format(altitude(), speed(), horizontal_speed(), vertical_speed()))
-
-        if horizontal_speed() > 0.1:
-            vessel.control.throttle = max(0, min(1.0, speed() / a100))
-        else:
-            vessel.control.throttle = 0
-            break
+    kill_horizontal_velocity(conn, use_sas)
 
     # Main decent loop
     last_sas_mode = vessel.control.sas_mode
@@ -239,6 +197,46 @@ def vertical_landing(conn: Client,
         unset_autostaging()
 
     return
+
+def kill_horizontal_velocity(conn: Client, use_sas: bool = True):
+    vessel = conn.space_center.active_vessel
+
+    # Set up dialog and stream
+    dialog = StatusDialog(conn)
+    ref_frame = conn.space_center.ReferenceFrame.create_hybrid(
+        position=vessel.orbit.body.reference_frame,
+        rotation=vessel.surface_reference_frame)
+    flight = vessel.flight(ref_frame)
+    mass = conn.add_stream(getattr, vessel, 'mass')
+    available_thrust = conn.add_stream(getattr, vessel, 'available_thrust')
+    altitude = conn.add_stream(getattr, flight, 'surface_altitude')
+    speed = conn.add_stream(getattr, flight, 'speed')
+    vertical_speed = conn.add_stream(getattr, flight, 'vertical_speed')
+    horizontal_speed = conn.add_stream(getattr, flight, 'horizontal_speed')
+
+    dialog.status_update("kill horizontal velocity")
+
+    if use_sas:
+        vessel.control.sas = True
+        vessel.control.sas_mode = vessel.control.sas_mode.retrograde
+        while angle_between(vessel.flight(vessel.surface_velocity_reference_frame).direction,(0,-1,0)) > 5/180 * math.pi:
+            time.sleep(0.1)
+    else:
+        vessel.auto_pilot.engage()
+        vessel.auto_pilot.reference_frame = vessel.surface_velocity_reference_frame
+        vessel.auto_pilot.target_direction = (0, -1, 0)
+        vessel.auto_pilot.wait()
+
+    while True:
+        a100 = available_thrust() / mass()
+        dialog.status_update("kill horizontal velocity: Alt: {: 5.3f}, Speed {: 5.3f} m/s (H: {: 5.3f}, V: {: 5.3f})"\
+                             "".format(altitude(), speed(), horizontal_speed(), vertical_speed()))
+
+        if horizontal_speed() > 0.1:
+            vessel.control.throttle = max(0, min(1.0, speed() / a100))
+        else:
+            vessel.control.throttle = 0
+            break
 
 def retract_panels(conn: Client):
     vessel = conn.space_center.active_vessel
