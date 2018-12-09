@@ -16,14 +16,14 @@ from scripts.utils.execute_node import execute_next_node
 from scripts.utils.maneuver import prograde_vector_at_ut
 
 def get_phase_angle(vessel: Vessel, target: Union[Vessel, Body]) -> float:
-    '''
+    """
     returns the relative phase angle for a hohmann transfer
-    '''
+    """
     vo=vessel.orbit
     to=target.orbit
     h=(vo.semi_major_axis+to.semi_major_axis)/2   # SMA of transfer orbit
 
-    #calculate the percentage of the target orbit that goes by during the half period of transfer orbit
+    # calculate the percentage of the target orbit that goes by during the half period of transfer orbit
     p = 1/(2*math.sqrt(math.pow(to.semi_major_axis,3)/math.pow(h,3)))
 
     # convert that to an angle in radians
@@ -32,20 +32,30 @@ def get_phase_angle(vessel: Vessel, target: Union[Vessel, Body]) -> float:
     return a
 
 def orbital_progress(vessel: Vessel, ut: float) -> float:
-    '''
+    """
     returns the orbital progress in radians, referenced to the planet's origin
     of longitude.
-    '''
+    """
     lan = vessel.orbit.longitude_of_ascending_node
     arg_p = vessel.orbit.argument_of_periapsis
     ma_ut = vessel.orbit.mean_anomaly_at_ut(ut)
 
     return clamp_2pi(lan + arg_p + ma_ut)
 
-def time_transfer(vessel: Vessel, target: Union[Vessel, Body], ut: float, phase_angle: float) -> float:
+def time_to_hohmann_transfer_at_phase_angle(vessel: Vessel, target: Union[Vessel, Body], ut: float, phase_angle: float) -> float:
     """
-    Performs an iterative search for the next time vessel and target
-    have the given relative phase_angle after ut
+    Performs an iterative search for the next time vessel and target have the given relative phase_angle after ut
+
+    Extended description of function.
+
+    Args:
+        vessel: vessel
+        target: target vessel or target body
+        ut: search start from this ut
+        phase_angle: resulting phase angle after hohmann transfer
+
+    Returns:
+        return time required for hohmann transfer
     """
 
     # search near close phase_angle 
@@ -56,7 +66,7 @@ def time_transfer(vessel: Vessel, target: Union[Vessel, Body], ut: float, phase_
     dt = (max_time - min_time) / num_divisions
 
     v_pos = orbital_progress(vessel, ut)
-    t_pos =  orbital_progress(target, ut)
+    t_pos = orbital_progress(target, ut)
     angle_error = abs(t_pos - (v_pos - math.pi) - phase_angle)
 
     last_angle_error = angle_error
@@ -91,7 +101,7 @@ def time_transfer(vessel: Vessel, target: Union[Vessel, Body], ut: float, phase_
         t = (max_time + min_time) / 2
 
         v_pos = orbital_progress(vessel, ut)
-        t_pos =  orbital_progress(target, ut)
+        t_pos = orbital_progress(target, ut)
         angle_error = abs(t_pos - (v_pos - math.pi) - phase_angle)
 
         if math.copysign(1, angle_error) == angle_error_t_sign:
@@ -105,10 +115,19 @@ def time_transfer(vessel: Vessel, target: Union[Vessel, Body], ut: float, phase_
     return t
 
 def hohmann_transfer(vessel: Vessel, target: Union[Vessel, Body], node_ut: float) -> Node:
-    '''
-    Create a maneuver node for a hohmann transfer from vessel orbit to target
-    orbit at the given time
-    '''
+    """
+    Create a maneuver node for a hohmann transfer from vessel orbit to target orbit at the given time
+
+    Extended description of function.
+
+    Args:
+        vessel: vessel
+        target: target vessel or target body
+        node_ut: time for node 
+
+    Returns:
+        return Node
+    """
     body = vessel.orbit.body
     GM = body.gravitational_parameter
     r1  = vessel.orbit.radius_at(node_ut)
@@ -157,7 +176,7 @@ def hohmann_transfer_to_target(conn: Client) -> None:
         return
 
     phase_angle = get_phase_angle(vessel, target)
-    transfer_time = time_transfer(vessel, target, ut(), phase_angle)
+    transfer_time = time_to_hohmann_transfer_at_phase_angle(vessel, target, ut(), phase_angle)
     node = hohmann_transfer(vessel, target, transfer_time)
 
     execute_next_node(conn)
