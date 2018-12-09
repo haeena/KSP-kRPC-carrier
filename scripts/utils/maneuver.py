@@ -280,7 +280,7 @@ def change_periapsis(conn: Client, node_ut: float, new_periapsis_alt: float):
 
     Args:
         conn: kRPC connection
-        new_apoapsis_alt: new apoapsis altitude
+        new_periapsis_alt: new periapsis altitude
         node_ut: schedule burn at specific time, if not specified burn at next apoapsis
 
     Returns:
