@@ -1,12 +1,84 @@
 import time
 import math
+import numpy
 from functools import reduce
 from krpc.client import Client
+
+# TODO: type hint for kRPC remote objects may need to be separated
+from typing import Union, NewType
+
+Vessel = NewType("Vessel", object)
+Body = NewType("Body", object)
+Node = NewType("Node", object)
 
 from scripts.utils.utils import *
 from scripts.utils.status_dialog import StatusDialog
 from scripts.utils.execute_node import execute_next_node
 from scripts.utils.autostage import set_autostaging, unset_autostaging
+
+def landing_prediction(vessel: Vessel) -> (float, float, float):
+    """landing position prediction
+
+    return prediction of landing position at current body
+
+    Args:
+        vessek: current radius from center of body 
+
+    Returns:
+        return state vector (x, y, z) on body
+    """
+    bref = vessel.orbit.body.reference_frame
+    bmu = vessel.orbit.body.gravitational_parameter
+    br = vessel.orbit.body.equatorial_radius
+
+    r = vessel.position(bref)
+    v = vessel.velocity(bref) 
+
+    r = [r[0], r[2], r[1]]    
+    v = [v[0], v[2], v[1]]
+
+    # calculate orbital elements from state vectors
+    h = np.cross(r, v)
+    e = np.subtract(np.divide(np.cross(v, h), bmu), np.divide(r, norm(r)))    
+    ec = norm(e)
+
+    n = np.transpose([-h[1], h[0], 0])
+
+    if np.dot(r, v)>=0:
+        nu = np.arccos(np.dot(e, r)/(ec*norm(r)))
+    else:
+        nu = 2*np.pi - np.arccos(np.dot(e, r)/(ec*norm(r)))
+
+    i = np.arccos(h[2]/norm(h))
+    if n[1]>=0:
+        RAAN = np.arccos(n[0]/norm(n))
+    else:
+        RAAN = 2*np.pi - np.arccos(n[0]/norm(n))
+
+    if e[2]>=0:
+        w = np.arccos(np.dot(n, e)/(ec*norm(n)))
+    else:
+        w = 2*np.pi - np.arccos(np.dot(n, e)/(ec*norm(n)))
+
+    a = (2.0/norm(r) - (norm(v)**2.0)/bmu)**-1
+    
+    elem = [a, ec, i, w, RAAN, nu]
+    
+    # calculate new true anomaly when distance to centre of body is equation radius on the orbit
+    elem[5] = -np.arccos(((1.0-elem[1]**2.0)*(elem[0]/br)-1.0)/elem[1])
+    
+    # convert back to state vectors
+    X = np.cos(elem[4])*np.cos(elem[3]+elem[5]) - np.sin(elem[4])*np.sin(elem[3]+elem[5])*np.cos(elem[2])
+    Y = np.sin(elem[4])*np.cos(elem[3]+elem[5]) + np.cos(elem[4])*np.sin(elem[3]+elem[5])*np.cos(elem[2])
+    Z = np.sin(elem[2])*np.sin(elem[3]+elem[5])
+    
+    X *= br
+    Y *= br
+    Z *= br
+    
+    R = [X, Y, Z]
+    
+    return R
 
 def impact_prediction(radius: float, altitude: float,
                       vertical_speed: float, horizontal_speed: float,
@@ -52,6 +124,8 @@ def vertical_landing(conn: Client,
                      retract_palens_on_decent: bool = True,
                      use_rcs_on_landing: bool = False,
                      use_parachute: bool = True,
+                     target_lat: float = None, target_lon: float = None,
+                     use_rcs_on_entry: bool = False
                     ) -> None:
     """Vertical landing
 
@@ -99,16 +173,44 @@ def vertical_landing(conn: Client,
     horizontal_speed = conn.add_stream(getattr, flight, 'horizontal_speed')
 
     vessel.control.sas = True
-    vessel.control.rcs = use_rcs_on_landing
     vessel.control.speed_mode = vessel.control.speed_mode.surface
 
     # set staging
     if auto_stage:
         set_autostaging(conn, stop_stage=stop_stage)
 
-    # kill horizontal velocity
-    kill_horizontal_velocity(conn, use_sas)
+    ## check unguided or guided
+    guided_landing = True
+    if target_lat == None or target_lon == None:
+        guided_landing = False
+        kill_horizontal_velocity(conn, use_sas)
 
+    # entry guidance
+    if guided_landing:
+        vessel.auto_pilot.reference_frame = vessel.orbit.body.reference_frame
+        vessel.auto_pilot.engage()
+
+        vessel.control.rcs = use_rcs_on_entry
+
+        while True:
+            a100 = available_thrust() / mass()
+            bounding_box = vessel.bounding_box(vessel.surface_reference_frame)
+            lower_bound = bounding_box[0][0]
+            landing_alt = altitude() + lower_bound
+
+            sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
+            burn_time = burn_prediction(terminal_speed, a100)
+            burn_lead_time = sec_until_impact - burn_time
+            if burn_lead_time < 10:
+                break
+
+            distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
+            vessel.control.auto_pilot.target_pitch_and_heading(0, bearing)
+            vessel.control.throttle = 0.1
+
+        vessel.auto_pilot.disengage()
+
+    vessel.control.rcs = use_rcs_on_landing
     # wait for burn loop
     last_ut = ut()
     while True:
@@ -123,7 +225,7 @@ def vertical_landing(conn: Client,
 
         if burn_lead_time and burn_lead_time !=0 and burn_lead_time > (ut() - last_ut)*1.5+2:
             if burn_lead_time > 30:
-                dialog.status_update("Warp for decereration burn - 30sec: {: 5.3f}".format(burn_lead_time, ut()))
+                dialog.status_update("Warp for decereration burn - 30sec: {: 5.3f}".format(burn_lead_time))
                 conn.space_center.warp_to(ut() + burn_lead_time - 30)
                 time.sleep(5)
             else:
@@ -198,6 +300,108 @@ def vertical_landing(conn: Client,
 
     return
 
+def landing_target_steering(vessel: Vessel, target_lat: float, target_lon: float) -> (float, float):
+    bref = vessel.orbit.body.reference_frame
+    br = vessel.orbit.body.equatorial_radius
+
+    # vespos = vessel.position(bref)
+    # tpos = vessel.orbit.body.surface_position(target_lat, target_lon, bref)
+    predpos = landing_prediction(vessel)
+
+    pred_lat, pred_lon = latlon(predpos)
+    cur_lat = vessel.flight(bref).latitude
+    cur_lon = vessel.flight(bref).longitude
+    
+    target_lat = d2r(target_lat)
+    target_lon = d2r(target_lon)
+    pred_lat = d2r(pred_lat)
+    pred_lon = d2r(pred_lon)
+    cur_lat = d2r(cur_lat)
+    cur_lon = d2r(cur_lon)
+
+    lat_error = target_lat - pred_lat
+    lon_error = target_lon - pred_lon
+
+    # calcurate great circule distance using Haversine formula
+    a = math.sin(lat_error/2) * math.sin(lat_error/2) + math.cos(target_lat) * math.cos(pred_lat) * math.sin(lon_error/2) * math.sin(lon_error/2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    distance_error = br * c
+
+    y = math.sin(lon_error) * math.cos(target_lat)
+    x = math.cos(pred_lat) * math.sin(target_lat) - math.sin(pred_lat) * math.cos(target_lat) * math.cos(lon_error)
+    bearing = math.atan2(y, x).toDegrees()
+
+    return distance_error, bearing
+
+def landing_target_steering2(conn: Client, vessel: Vessel, target_lat: float, target_lon: float):
+    Dir = (0.0,-1.0,0.0) 
+    Dir = conn.space_center.transform_direction(Dir, vessel.surface_velocity_reference_frame, vessel.surface_reference_frame)
+    Dir = numpy.asarray(Dir)
+    Dir[0] = 0
+    Dir = numpy.multiply(Dir, 1.0/numpy.linalg.norm(Dir))
+    Dir = (Dir[0], Dir[1], Dir[2])
+
+    bref = vessel.orbit.body.reference_frame
+    br = vessel.orbit.body.equatorial_radius
+
+    vespos = vessel.position(bref)
+    tpos = vessel.orbit.body.surface_position(target_lat, target_lon, bref)
+
+    predpos = landing_prediction(vessel)
+    pred_lat, pred_lon = latlon(predpos)
+
+    cur_lat = vessel.flight(bref).latitude
+    cur_lon = vessel.flight(bref).longitude
+    
+    # Latitudes and Longitudes of all relative positions
+    pred_lat = d2r(pred_lat)
+    pred_lon = d2r(pred_lon)
+    cur_lat = d2r(cur_lat)
+    cur_lon = d2r(cur_lon)
+    target_lat = d2r(target_lat)
+    target_lon = d2r(target_lon)
+    
+    # The following calculates the deviation of the landing position from the line connecting the vessel and the target
+    t_p = db2(target_lat, target_lon, pred_lat, pred_lon, br)
+    p_v = db2(pred_lat, pred_lon, cur_lat, cur_lon, br)
+    t_v = db2(target_lat, target_lon, cur_lat, cur_lon, br)
+
+    vespos = [vespos[0],vespos[2],vespos[1]]
+    vespos = numpy.multiply(vespos, br/numpy.linalg.norm(vespos))
+    n_vec = numpy.cross(vespos, tpos)
+    n_vec = numpy.divide(n_vec, numpy.linalg.norm(n_vec))
+    xp = r2d(numpy.arcsin(numpy.dot(n_vec, numpy.divide(predpos,numpy.linalg.norm(predpos)))))
+
+    # Modifies steering direction to minimise the deviation calculated above
+    deviation = predir*xp
+    Dir_Bearing = numpy.asarray(Dir)
+    Dir_Bearing[0] = 0
+    Dir_Bearing = numpy.divide(Dir_Bearing, numpy.linalg.norm(Dir_Bearing))
+    r_ang = d2r(100*deviation)
+    
+    r_ang = [[1, 0, 0],[0, numpy.cos(r_ang), -numpy.sin(r_ang)],[0, numpy.sin(r_ang), numpy.cos(r_ang)]]
+    r_ang = numpy.transpose(r_ang)
+    Dir_Bearing = numpy.dot(r_ang, Dir_Bearing)
+
+    new_Dir = (Dir_Bearing[0],Dir_Bearing[1], Dir_Bearing[2])
+    
+    error_ang = SAS.vang(numpy.asarray(new_Dir), numpy.asarray(vessel.flight(vessel.surface_reference_frame).direction))
+    
+    if error_ang<=0.3745:
+        vessel.control.throttle = 1.0
+        vessel.control.rcs = False
+    else:
+        vessel.control.throttle = 0.0
+        vessel.control.rcs = True
+    lim = r2d((p_v-t_v)/br)
+
+    # condition to slightly overshoot the target to account for drag and landing maneuvers
+    if lim>0.06 and lim<0.07 and (t_p-t_v)<=0: # change these conditions depending on trajectory
+        vessel.control.throttle = 0.0
+        vessel.control.rcs = True
+    
+    time.sleep(0.005)
+
 def kill_horizontal_velocity(conn: Client, use_sas: bool = True):
     vessel = conn.space_center.active_vessel
 
@@ -261,4 +465,4 @@ if __name__ == "__main__":
     import krpc
     krpc_address = os.environ["KRPC_ADDRESS"]
     con = krpc.connect(name='Landing', address=krpc_address)
-    vertical_landing(con)
+    vertical_landing(con, target_lat = -0.09, target_lon = -75.557, use_rcs_on_entry = True)
