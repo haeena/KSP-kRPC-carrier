@@ -120,12 +120,14 @@ def vertical_landing(conn: Client,
                      landing_speed: float = 5.0,
                      auto_stage: bool = True,
                      stop_stage: int = 0,
+                     target_lat: float = None, target_lon: float = None,
+                     deploy_legs_on_entry: bool = True,
+                     retract_palens_on_entry: bool = True,
+                     use_rcs_on_entry: bool = False,
                      deploy_legs_on_decent: bool = True,
                      retract_palens_on_decent: bool = True,
                      use_rcs_on_landing: bool = False,
-                     use_parachute: bool = True,
-                     target_lat: float = None, target_lon: float = None,
-                     use_rcs_on_entry: bool = False
+                     use_parachute: bool = True
                     ) -> None:
     """Vertical landing
 
@@ -200,12 +202,19 @@ def vertical_landing(conn: Client,
             a100 = available_thrust() / mass()
             bounding_box = vessel.bounding_box(ref_frame)
             lower_bound = bounding_box[0][0]
+
             landing_alt = altitude() + lower_bound
+            if guided_landing:
+                landing_alt = max(landing_alt, vessel.orbit.body.surface_height(target_lat, target_lon) + lower_bound)
+
 
             sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
             burn_time = burn_prediction(terminal_speed, a100)
             burn_lead_time = sec_until_impact - burn_time
             if burn_lead_time < 30:
+                break
+
+            if vessel.orbit.body.atmosphere_depth < altitude():
                 break
 
             distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
@@ -223,26 +232,48 @@ def vertical_landing(conn: Client,
                     vessel.control.throttle = 0.05
             else:
                 vessel.control.throttle = 0
+            
+            dialog.status_update("Distance error: {: 5.3f}".format(distance_error))
+
             last_distance_error = distance_error
             last_throttle = vessel.control.throttle
 
+        vessel.control.throttle = 0
         vessel.auto_pilot.disengage()
 
     vessel.control.rcs = use_rcs_on_landing
-    # wait for burn loop
+    vessel.control.sas_mode = vessel.control.sas_mode.retrograde
 
+    # wait for entry
+    if vessel.orbit.body.has_atmosphere:
+        warp_to_alt = vessel.orbit.body.atmosphere_depth
+        sec_until_entry, terminal_speed = impact_prediction(radius(), warp_to_alt, vertical_speed(), horizontal_speed(), surface_gravity)
+        if sec_until_entry > 30:
+            dialog.status_update("Warp for entry - 30sec: {: 5.3f}".format(sec_until_entry))
+            conn.space_center.warp_to(ut() + sec_until_entry - 30)
+            time.sleep(5)
+
+    # on decent: deploy leg, retract panel
+    if deploy_legs_on_entry:
+        deploy_legs(conn)
+    if retract_palens_on_entry:
+        retract_panels(conn)
+
+    # wait for burn
     last_ut = ut()
     while True:
         a100 = available_thrust() / mass()
-        bounding_box = vessel.bounding_box(vessel.surface_reference_frame)
-        lower_bound = bounding_box[0][0]
+        lower_bound = vessel.bounding_box(vessel.surface_reference_frame)[0][0]
+
         landing_alt = altitude() + lower_bound
+        if guided_landing:
+            landing_alt = max(landing_alt, vessel.orbit.body.surface_height(target_lat, target_lon) + lower_bound)
 
         sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
         burn_time = burn_prediction(terminal_speed, a100)
         burn_lead_time = sec_until_impact - burn_time
 
-        if burn_lead_time and burn_lead_time !=0 and burn_lead_time > (ut() - last_ut)*1.5+2:
+        if burn_lead_time and burn_lead_time > (ut() - last_ut)*1.5+2:
             if burn_lead_time > 30:
                 dialog.status_update("Warp for decereration burn - 30sec: {: 5.3f}".format(burn_lead_time))
                 conn.space_center.warp_to(ut() + burn_lead_time - 30)
