@@ -192,6 +192,10 @@ def vertical_landing(conn: Client,
 
         vessel.control.rcs = use_rcs_on_entry
 
+        last_ut = ut()
+        last_distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
+        last_throttle = 0
+
         while True:
             a100 = available_thrust() / mass()
             bounding_box = vessel.bounding_box(ref_frame)
@@ -201,15 +205,27 @@ def vertical_landing(conn: Client,
             sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
             burn_time = burn_prediction(terminal_speed, a100)
             burn_lead_time = sec_until_impact - burn_time
-            if burn_lead_time < 10:
+            if burn_lead_time < 30:
                 break
 
             distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
             vessel.auto_pilot.target_pitch_and_heading(0, bearing)
+
+            if distance_error < 500:
+                break
+            
             if vessel.auto_pilot.heading_error < 1:
-                vessel.control.throttle = 1
+                try:
+                    instant_rate_per_throttle = (distance_error - last_distance_error) / ((ut() - last_ut) * last_throttle)
+                    instant_rate_per_throttle = max(1.0, instant_rate_per_throttle)
+                    vessel.control.throttle = min(1, max(0.05, distance_error / instant_rate_per_throttle))
+                except:
+                    vessel.control.throttle = 0.05
             else:
                 vessel.control.throttle = 0
+            last_distance_error = distance_error
+            last_throttle = vessel.control.throttle
+
         vessel.auto_pilot.disengage()
 
     vessel.control.rcs = use_rcs_on_landing
