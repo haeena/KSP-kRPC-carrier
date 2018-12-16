@@ -22,7 +22,7 @@ def landing_prediction(vessel: Vessel) -> (float, float, float):
     return prediction of landing position at current body
 
     Args:
-        vessek: current radius from center of body 
+        vessel: current radius from center of body 
 
     Returns:
         return state vector (x, y, z) on body
@@ -187,14 +187,14 @@ def vertical_landing(conn: Client,
 
     # entry guidance
     if guided_landing:
-        vessel.auto_pilot.reference_frame = vessel.orbit.body.reference_frame
+        vessel.auto_pilot.reference_frame = ref_frame
         vessel.auto_pilot.engage()
 
         vessel.control.rcs = use_rcs_on_entry
 
         while True:
             a100 = available_thrust() / mass()
-            bounding_box = vessel.bounding_box(vessel.surface_reference_frame)
+            bounding_box = vessel.bounding_box(ref_frame)
             lower_bound = bounding_box[0][0]
             landing_alt = altitude() + lower_bound
 
@@ -205,13 +205,16 @@ def vertical_landing(conn: Client,
                 break
 
             distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
-            vessel.control.auto_pilot.target_pitch_and_heading(0, bearing)
-            vessel.control.throttle = 0.1
-
+            vessel.auto_pilot.target_pitch_and_heading(0, bearing)
+            if vessel.auto_pilot.heading_error < 1:
+                vessel.control.throttle = 1
+            else:
+                vessel.control.throttle = 0
         vessel.auto_pilot.disengage()
 
     vessel.control.rcs = use_rcs_on_landing
     # wait for burn loop
+
     last_ut = ut()
     while True:
         a100 = available_thrust() / mass()
@@ -329,7 +332,7 @@ def landing_target_steering(vessel: Vessel, target_lat: float, target_lon: float
 
     y = math.sin(lon_error) * math.cos(target_lat)
     x = math.cos(pred_lat) * math.sin(target_lat) - math.sin(pred_lat) * math.cos(target_lat) * math.cos(lon_error)
-    bearing = math.atan2(y, x).toDegrees()
+    bearing = r2d(math.atan2(y, x)) % 360
 
     return distance_error, bearing
 
