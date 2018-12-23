@@ -79,6 +79,7 @@ def vertical_landing(conn: Client,
     radius = conn.add_stream(getattr, vessel.orbit, 'radius')
     apoapsis_altitude = conn.add_stream(getattr, vessel.orbit, 'apoapsis_altitude')
     altitude = conn.add_stream(getattr, flight, 'surface_altitude')
+    mean_altitude = conn.add_stream(getattr, flight, 'mean_altitude')
     speed = conn.add_stream(getattr, flight, 'speed')
     vertical_speed = conn.add_stream(getattr, flight, 'vertical_speed')
     horizontal_speed = conn.add_stream(getattr, flight, 'horizontal_speed')
@@ -114,12 +115,12 @@ def vertical_landing(conn: Client,
 
         while True:
             a100 = available_thrust() / mass()
-            bounding_box = vessel.bounding_box(ref_frame)
+            bounding_box = vessel.bounding_box(vessel.surface_reference_frame)
             lower_bound = bounding_box[0][0]
 
-            landing_radius = radius() + lower_bound
+            landing_radius = body.equatorial_radius + lower_bound
             if guided_landing:
-                landing_radius = max(landing_radius, body.equatorial_radius + body.surface_height(target_lat, target_lon) + lower_bound)
+                landing_radius = max(landing_radius, landing_radius + body.surface_height(target_lat, target_lon))
 
             impact_ut, terminal_speed = impact_prediction(vessel.orbit, landing_radius)
             burn_time = burn_prediction(terminal_speed, a100)
@@ -185,9 +186,9 @@ def vertical_landing(conn: Client,
         a100 = available_thrust() / mass()
         lower_bound = vessel.bounding_box(vessel.surface_reference_frame)[0][0]
 
-        landing_radius = radius() + lower_bound
+        landing_radius = body.equatorial_radius + lower_bound
         if guided_landing:
-            landing_radius = max(landing_radius, body.equatorial_radius + body.surface_height(target_lat, target_lon) + lower_bound)
+            landing_radius = max(landing_radius, landing_radius + body.surface_height(target_lat, target_lon))
 
         impact_ut, terminal_speed = impact_prediction(vessel.orbit, landing_radius)
         burn_time = burn_prediction(terminal_speed, a100)
@@ -222,7 +223,7 @@ def vertical_landing(conn: Client,
         bounding_box = vessel.bounding_box(vessel.surface_reference_frame)
         lower_bound = bounding_box[0][0]
 
-        landing_radius = radius() + lower_bound
+        landing_radius = mean_altitude() + lower_bound
         impact_ut, terminal_speed = impact_prediction(vessel.orbit, landing_radius)
         burn_time = burn_prediction(terminal_speed, a100)
         burn_lead_time = impact_ut - burn_time - ut()
