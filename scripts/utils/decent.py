@@ -5,7 +5,7 @@ from functools import reduce
 from krpc.client import Client
 
 # TODO: type hint for kRPC remote objects may need to be separated
-from typing import Union, NewType
+from typing import Union, NewType, Callable
 
 Vessel = NewType("Vessel", object)
 Body = NewType("Body", object)
@@ -24,6 +24,8 @@ def vertical_landing(conn: Client,
                      deploy_legs_on_entry: bool = True,
                      retract_palens_on_entry: bool = True,
                      use_rcs_on_entry: bool = False,
+                     entry_attitude: str = "Retrograde",
+                     entry_attitude_func: Callable[[Vessel], None] = None,
                      deploy_legs_on_decent: bool = True,
                      retract_palens_on_decent: bool = True,
                      use_rcs_on_landing: bool = False,
@@ -61,18 +63,24 @@ def vertical_landing(conn: Client,
     # Set up dialog and stream
     dialog = StatusDialog(conn)
     surface_gravity = vessel.orbit.body.surface_gravity
+    has_atmosphere = vessel.orbit.body.has_atmosphere
+    atmosphere_depth = vessel.orbit.body.atmosphere_depth
+
     ref_frame = conn.space_center.ReferenceFrame.create_hybrid(
         position=vessel.orbit.body.reference_frame,
         rotation=vessel.surface_reference_frame)
     flight = vessel.flight(ref_frame)
+
     ut = conn.add_stream(getattr, conn.space_center, 'ut')
     mass = conn.add_stream(getattr, vessel, 'mass')
     available_thrust = conn.add_stream(getattr, vessel, 'available_thrust')
     radius = conn.add_stream(getattr, vessel.orbit, 'radius')
+    apoapsis_altitude = conn.add_stream(getattr, vessel.orbit, 'apoapsis_altitude')
     altitude = conn.add_stream(getattr, flight, 'surface_altitude')
     speed = conn.add_stream(getattr, flight, 'speed')
     vertical_speed = conn.add_stream(getattr, flight, 'vertical_speed')
     horizontal_speed = conn.add_stream(getattr, flight, 'horizontal_speed')
+    terminal_velocity = conn.add_stream(getattr, flight, 'terminal_velocity')
 
     vessel.control.sas = True
     vessel.control.speed_mode = vessel.control.speed_mode.surface
@@ -89,12 +97,14 @@ def vertical_landing(conn: Client,
     if not guided_landing:
         kill_horizontal_velocity(conn, use_sas)
 
-    # entry guidance
+    #### 
+    # pre-entry phase
+    vessel.control.rcs = use_rcs_on_entry
+
+    # pre-entry guidance
     if guided_landing:
         vessel.auto_pilot.reference_frame = ref_frame
         vessel.auto_pilot.engage()
-
-        vessel.control.rcs = use_rcs_on_entry
 
         last_ut = ut()
         last_distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
@@ -109,14 +119,13 @@ def vertical_landing(conn: Client,
             if guided_landing:
                 landing_alt = max(landing_alt, vessel.orbit.body.surface_height(target_lat, target_lon) + lower_bound)
 
-
             sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
             burn_time = burn_prediction(terminal_speed, a100)
             burn_lead_time = sec_until_impact - burn_time
             if burn_lead_time < 30:
                 break
 
-            if vessel.orbit.body.atmosphere_depth > altitude():
+            if atmosphere_depth > apoapsis_altitude():
                 break
 
             distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
@@ -143,23 +152,29 @@ def vertical_landing(conn: Client,
         vessel.control.throttle = 0
         vessel.auto_pilot.disengage()
 
-    vessel.control.rcs = use_rcs_on_landing
+    ####
+    # entry
+    vessel.control.sas = True
     vessel.control.sas_mode = vessel.control.sas_mode.retrograde
 
+    # on entry: deploy leg, retract panel
+    if deploy_legs_on_entry:
+        deploy_legs(conn)
+    if retract_palens_on_entry:
+        retract_panels(conn)
+
     # wait for entry
-    if vessel.orbit.body.has_atmosphere and vessel.orbit.body.atmosphere_depth < altitude():
-        warp_to_alt = vessel.orbit.body.atmosphere_depth
+    if has_atmosphere and atmosphere_depth < altitude():
+        warp_to_alt = atmosphere_depth
         sec_until_entry, terminal_speed = impact_prediction(radius(), warp_to_alt, vertical_speed(), horizontal_speed(), surface_gravity)
         if sec_until_entry > 30:
             dialog.status_update("Warp for entry - 30sec: {: 5.3f}".format(sec_until_entry))
             conn.space_center.warp_to(ut() + sec_until_entry - 30)
             time.sleep(5)
 
-    # on decent: deploy leg, retract panel
-    if deploy_legs_on_entry:
-        deploy_legs(conn)
-    if retract_palens_on_entry:
-        retract_panels(conn)
+    ####
+    # landing phase
+    vessel.control.rcs = use_rcs_on_landing
 
     # wait for burn
     last_ut = ut()
@@ -218,7 +233,7 @@ def vertical_landing(conn: Client,
                             )
 
         if use_sas:
-            if (horizontal_speed() > 0.5 or horizontal_speed() / speed() > 0.9) and last_sas_mode != vessel.control.sas_mode.retrograde:
+            if (horizontal_speed() > 0.5 and speed() > 1.0) and last_sas_mode != vessel.control.sas_mode.retrograde:
                 vessel.control.sas_mode = vessel.control.sas_mode.retrograde
                 last_sas_mode = vessel.control.sas_mode.retrograde
             elif last_sas_mode != vessel.control.sas_mode.radial:
@@ -228,14 +243,17 @@ def vertical_landing(conn: Client,
             # TODO: auto-pilot
             pass
 
+        if burn_lead_time < 0.1:
+            throttle = max(0, min(1.0, ( speed_prediction(vessel, vertical_speed(), horizontal_speed(), surface_gravity) - landing_speed) / a100))
+            vessel.control.throttle = throttle
+        else:
+            vessel.control.throttle = 0
+
         if is_grounded(vessel):
             vessel.control.sas_mode.radial
             vessel.control.throttle = 0
             break
 
-        if burn_lead_time < 1:
-            throttle = max(0, min(1.0, ( speed() - landing_speed + surface_gravity) / a100))
-            vessel.control.throttle = throttle
         last_ut = ut()
 
     dialog.status_update("Landed")
@@ -252,6 +270,9 @@ def vertical_landing(conn: Client,
         unset_autostaging()
 
     return
+
+def speed_prediction(vessel: Vessel, vertical_speed: float, horizontal_speed: float, surface_gravity: float) -> float:
+    return math.sqrt((vertical_speed - surface_gravity)**2 + horizontal_speed**2)
 
 def landing_prediction(vessel: Vessel) -> (float, float, float):
     """landing position prediction
