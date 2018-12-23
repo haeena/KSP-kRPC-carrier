@@ -16,6 +16,243 @@ from scripts.utils.status_dialog import StatusDialog
 from scripts.utils.execute_node import execute_next_node
 from scripts.utils.autostage import set_autostaging, unset_autostaging
 
+def vertical_landing(conn: Client,
+                     landing_speed: float = 5.0,
+                     auto_stage: bool = True,
+                     stop_stage: int = 0,
+                     target_lat: float = None, target_lon: float = None,
+                     deploy_legs_on_entry: bool = True,
+                     retract_palens_on_entry: bool = True,
+                     use_rcs_on_entry: bool = False,
+                     deploy_legs_on_decent: bool = True,
+                     retract_palens_on_decent: bool = True,
+                     use_rcs_on_landing: bool = False,
+                     use_parachute: bool = True
+                    ) -> None:
+    """Vertical landing
+
+    Extended description of function.
+
+    Args:
+        conn: kRPC connection
+        auto_stage: staging when no fuel left on the stage
+        stop_stage: stop staging on the stage
+        deploy_legs_on_decent: extend legs on landing
+        retract_palens_on_decent: retract panels on landing
+        use_rcs_on_landing: use rcs or not
+        use_parachute: use parachute
+
+    Returns:
+        return nothing, return when procedure finished
+    """
+    vessel = conn.space_center.active_vessel
+
+    ## check retrograde and radial hold capability
+    use_sas = False
+    try:
+        vessel.control.sas = True
+        vessel.control.sas_mode = vessel.control.sas_mode.retrograde
+        vessel.control.sas_mode = vessel.control.sas_mode.radial
+        use_sas = True
+    except:
+        pass        
+    vessel.control.sas = False
+
+    # Set up dialog and stream
+    dialog = StatusDialog(conn)
+    surface_gravity = vessel.orbit.body.surface_gravity
+    ref_frame = conn.space_center.ReferenceFrame.create_hybrid(
+        position=vessel.orbit.body.reference_frame,
+        rotation=vessel.surface_reference_frame)
+    flight = vessel.flight(ref_frame)
+    ut = conn.add_stream(getattr, conn.space_center, 'ut')
+    mass = conn.add_stream(getattr, vessel, 'mass')
+    available_thrust = conn.add_stream(getattr, vessel, 'available_thrust')
+    radius = conn.add_stream(getattr, vessel.orbit, 'radius')
+    altitude = conn.add_stream(getattr, flight, 'surface_altitude')
+    speed = conn.add_stream(getattr, flight, 'speed')
+    vertical_speed = conn.add_stream(getattr, flight, 'vertical_speed')
+    horizontal_speed = conn.add_stream(getattr, flight, 'horizontal_speed')
+
+    vessel.control.sas = True
+    vessel.control.speed_mode = vessel.control.speed_mode.surface
+
+    # set staging
+    if auto_stage:
+        set_autostaging(conn, stop_stage=stop_stage)
+
+    ## check unguided or guided
+    guided_landing = True
+    if target_lat == None or target_lon == None:
+        guided_landing = False
+
+    if not guided_landing:
+        kill_horizontal_velocity(conn, use_sas)
+
+    # entry guidance
+    if guided_landing:
+        vessel.auto_pilot.reference_frame = ref_frame
+        vessel.auto_pilot.engage()
+
+        vessel.control.rcs = use_rcs_on_entry
+
+        last_ut = ut()
+        last_distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
+        last_throttle = 0
+
+        while True:
+            a100 = available_thrust() / mass()
+            bounding_box = vessel.bounding_box(ref_frame)
+            lower_bound = bounding_box[0][0]
+
+            landing_alt = altitude() + lower_bound
+            if guided_landing:
+                landing_alt = max(landing_alt, vessel.orbit.body.surface_height(target_lat, target_lon) + lower_bound)
+
+
+            sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
+            burn_time = burn_prediction(terminal_speed, a100)
+            burn_lead_time = sec_until_impact - burn_time
+            if burn_lead_time < 30:
+                break
+
+            if vessel.orbit.body.atmosphere_depth > altitude():
+                break
+
+            distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
+            vessel.auto_pilot.target_pitch_and_heading(0, bearing)
+
+            if distance_error < 500:
+                break
+            
+            if vessel.auto_pilot.heading_error < 1:
+                try:
+                    instant_rate_per_throttle = (distance_error - last_distance_error) / ((ut() - last_ut) * last_throttle)
+                    instant_rate_per_throttle = max(1.0, instant_rate_per_throttle)
+                    vessel.control.throttle = min(1, max(0.05, distance_error / instant_rate_per_throttle))
+                except:
+                    vessel.control.throttle = 0.05
+            else:
+                vessel.control.throttle = 0
+            
+            dialog.status_update("Distance error: {: 5.3f}".format(distance_error))
+
+            last_distance_error = distance_error
+            last_throttle = vessel.control.throttle
+
+        vessel.control.throttle = 0
+        vessel.auto_pilot.disengage()
+
+    vessel.control.rcs = use_rcs_on_landing
+    vessel.control.sas_mode = vessel.control.sas_mode.retrograde
+
+    # wait for entry
+    if vessel.orbit.body.has_atmosphere and vessel.orbit.body.atmosphere_depth < altitude():
+        warp_to_alt = vessel.orbit.body.atmosphere_depth
+        sec_until_entry, terminal_speed = impact_prediction(radius(), warp_to_alt, vertical_speed(), horizontal_speed(), surface_gravity)
+        if sec_until_entry > 30:
+            dialog.status_update("Warp for entry - 30sec: {: 5.3f}".format(sec_until_entry))
+            conn.space_center.warp_to(ut() + sec_until_entry - 30)
+            time.sleep(5)
+
+    # on decent: deploy leg, retract panel
+    if deploy_legs_on_entry:
+        deploy_legs(conn)
+    if retract_palens_on_entry:
+        retract_panels(conn)
+
+    # wait for burn
+    last_ut = ut()
+    while True:
+        a100 = available_thrust() / mass()
+        lower_bound = vessel.bounding_box(vessel.surface_reference_frame)[0][0]
+
+        landing_alt = altitude() + lower_bound
+        if guided_landing:
+            landing_alt = max(landing_alt, vessel.orbit.body.surface_height(target_lat, target_lon) + lower_bound)
+
+        sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
+        burn_time = burn_prediction(terminal_speed, a100)
+        burn_lead_time = sec_until_impact - burn_time
+
+        if burn_lead_time and burn_lead_time > (ut() - last_ut)*1.5+2:
+            if burn_lead_time > 30:
+                dialog.status_update("Warp for decereration burn - 30sec: {: 5.3f}".format(burn_lead_time))
+                conn.space_center.warp_to(ut() + burn_lead_time - 30)
+                time.sleep(5)
+            else:
+                dialog.status_update("Wait for decereration burn: {: 5.3f} sec; ut: {: 5.3f}".format(burn_lead_time, ut()))
+        else:
+            break
+        last_ut = ut()
+        time.sleep(0.1)
+
+    # on decent: deploy leg, retract panel
+    if deploy_legs_on_decent:
+        deploy_legs(conn)
+    if retract_palens_on_decent:
+        retract_panels(conn)
+
+    if not guided_landing:
+        # kill horizontal velocity again
+        kill_horizontal_velocity(conn, use_sas)
+
+    # Main decent loop
+    last_sas_mode = vessel.control.sas_mode
+    while True:
+        a100 = available_thrust() / mass()
+        bounding_box = vessel.bounding_box(vessel.surface_reference_frame)
+        lower_bound = bounding_box[0][0]
+        landing_alt = altitude() + lower_bound
+
+        sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
+        burn_time = burn_prediction(terminal_speed, a100)
+        burn_lead_time = sec_until_impact - burn_time
+
+        dialog.status_update("Alt: {: 5.3f}, Speed {: 5.3f} m/s (H: {: 5.3f}, V: {: 5.3f}), "\
+                             "a: {: 5.3f}, g: {: 5.3f}, "\
+                             "landing in: {: 5.3f} sec, burn lead time: {: 5.3f} sec"\
+                             "".format(altitude(), speed(), horizontal_speed(), vertical_speed(),
+                                       a100, surface_gravity,
+                                       sec_until_impact, burn_lead_time)
+                            )
+
+        if use_sas:
+            if (horizontal_speed() > 0.5 or horizontal_speed() / speed() > 0.9) and last_sas_mode != vessel.control.sas_mode.retrograde:
+                vessel.control.sas_mode = vessel.control.sas_mode.retrograde
+                last_sas_mode = vessel.control.sas_mode.retrograde
+            elif last_sas_mode != vessel.control.sas_mode.radial:
+                vessel.control.sas_mode = vessel.control.sas_mode.radial
+                last_sas_mode = vessel.control.sas_mode.radial
+        else:
+            # TODO: auto-pilot
+            pass
+
+        if is_grounded(vessel):
+            vessel.control.sas_mode.radial
+            vessel.control.throttle = 0
+            break
+
+        if burn_lead_time < 1:
+            throttle = max(0, min(1.0, ( speed() - landing_speed + surface_gravity) / a100))
+            vessel.control.throttle = throttle
+        last_ut = ut()
+
+    dialog.status_update("Landed")
+
+    # keep sas on for a bit to maintain landing stability
+    time.sleep(5)
+
+    if use_sas:
+        vessel.control.sas = False
+    else:
+        vessel.auto_pilot.disengage() 
+
+    if auto_stage:
+        unset_autostaging()
+
+    return
+
 def landing_prediction(vessel: Vessel) -> (float, float, float):
     """landing position prediction
 
@@ -110,245 +347,11 @@ def impact_prediction(radius: float, altitude: float,
     sec_until_impact = (-fall_speed + math.sqrt(fall_speed * fall_speed + 2.0 * downward_acceleration * altitude)) / downward_acceleration
 
     vertical_speed_at_impact = fall_speed + sec_until_impact * downward_acceleration
-    impact_speed = math.sqrt(vertical_speed_at_impact * vertical_speed_at_impact + horizontal_speed * horizontal_speed);
+    impact_speed = math.sqrt(vertical_speed_at_impact * vertical_speed_at_impact + horizontal_speed * horizontal_speed)
     return sec_until_impact, impact_speed
 
 def burn_prediction(delta_v: float, acceleration: float):
     return delta_v / acceleration
-
-def vertical_landing(conn: Client,
-                     landing_speed: float = 5.0,
-                     auto_stage: bool = True,
-                     stop_stage: int = 0,
-                     target_lat: float = None, target_lon: float = None,
-                     deploy_legs_on_entry: bool = True,
-                     retract_palens_on_entry: bool = True,
-                     use_rcs_on_entry: bool = False,
-                     deploy_legs_on_decent: bool = True,
-                     retract_palens_on_decent: bool = True,
-                     use_rcs_on_landing: bool = False,
-                     use_parachute: bool = True
-                    ) -> None:
-    """Vertical landing
-
-    Extended description of function.
-
-    Args:
-        conn: kRPC connection
-        auto_stage: staging when no fuel left on the stage
-        stop_stage: stop staging on the stage
-        deploy_legs_on_decent: extend legs on landing
-        retract_palens_on_decent: retract panels on landing
-        use_rcs_on_landing: use rcs or not
-        use_parachute: use parachute
-
-    Returns:
-        return nothing, return when procedure finished
-    """
-    vessel = conn.space_center.active_vessel
-
-    ## check retrograde and radial hold capability
-    use_sas = False
-    try:
-        vessel.control.sas = True
-        vessel.control.sas_mode = vessel.control.sas_mode.retrograde
-        vessel.control.sas_mode = vessel.control.sas_mode.radial
-        use_sas = True
-    except:
-        pass        
-    vessel.control.sas = False
-
-    # Set up dialog and stream
-    dialog = StatusDialog(conn)
-    surface_gravity = vessel.orbit.body.surface_gravity
-    ref_frame = conn.space_center.ReferenceFrame.create_hybrid(
-        position=vessel.orbit.body.reference_frame,
-        rotation=vessel.surface_reference_frame)
-    flight = vessel.flight(ref_frame)
-    ut = conn.add_stream(getattr, conn.space_center, 'ut')
-    mass = conn.add_stream(getattr, vessel, 'mass')
-    available_thrust = conn.add_stream(getattr, vessel, 'available_thrust')
-    radius = conn.add_stream(getattr, vessel.orbit, 'radius')
-    altitude = conn.add_stream(getattr, flight, 'surface_altitude')
-    speed = conn.add_stream(getattr, flight, 'speed')
-    vertical_speed = conn.add_stream(getattr, flight, 'vertical_speed')
-    horizontal_speed = conn.add_stream(getattr, flight, 'horizontal_speed')
-
-    vessel.control.sas = True
-    vessel.control.speed_mode = vessel.control.speed_mode.surface
-
-    # set staging
-    if auto_stage:
-        set_autostaging(conn, stop_stage=stop_stage)
-
-    ## check unguided or guided
-    guided_landing = True
-    if target_lat == None or target_lon == None:
-        guided_landing = False
-        kill_horizontal_velocity(conn, use_sas)
-
-    # entry guidance
-    if guided_landing:
-        vessel.auto_pilot.reference_frame = ref_frame
-        vessel.auto_pilot.engage()
-
-        vessel.control.rcs = use_rcs_on_entry
-
-        last_ut = ut()
-        last_distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
-        last_throttle = 0
-
-        while True:
-            a100 = available_thrust() / mass()
-            bounding_box = vessel.bounding_box(ref_frame)
-            lower_bound = bounding_box[0][0]
-
-            landing_alt = altitude() + lower_bound
-            if guided_landing:
-                landing_alt = max(landing_alt, vessel.orbit.body.surface_height(target_lat, target_lon) + lower_bound)
-
-
-            sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
-            burn_time = burn_prediction(terminal_speed, a100)
-            burn_lead_time = sec_until_impact - burn_time
-            if burn_lead_time < 30:
-                break
-
-            if vessel.orbit.body.atmosphere_depth < altitude():
-                break
-
-            distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
-            vessel.auto_pilot.target_pitch_and_heading(0, bearing)
-
-            if distance_error < 500:
-                break
-            
-            if vessel.auto_pilot.heading_error < 1:
-                try:
-                    instant_rate_per_throttle = (distance_error - last_distance_error) / ((ut() - last_ut) * last_throttle)
-                    instant_rate_per_throttle = max(1.0, instant_rate_per_throttle)
-                    vessel.control.throttle = min(1, max(0.05, distance_error / instant_rate_per_throttle))
-                except:
-                    vessel.control.throttle = 0.05
-            else:
-                vessel.control.throttle = 0
-            
-            dialog.status_update("Distance error: {: 5.3f}".format(distance_error))
-
-            last_distance_error = distance_error
-            last_throttle = vessel.control.throttle
-
-        vessel.control.throttle = 0
-        vessel.auto_pilot.disengage()
-
-    vessel.control.rcs = use_rcs_on_landing
-    vessel.control.sas_mode = vessel.control.sas_mode.retrograde
-
-    # wait for entry
-    if vessel.orbit.body.has_atmosphere:
-        warp_to_alt = vessel.orbit.body.atmosphere_depth
-        sec_until_entry, terminal_speed = impact_prediction(radius(), warp_to_alt, vertical_speed(), horizontal_speed(), surface_gravity)
-        if sec_until_entry > 30:
-            dialog.status_update("Warp for entry - 30sec: {: 5.3f}".format(sec_until_entry))
-            conn.space_center.warp_to(ut() + sec_until_entry - 30)
-            time.sleep(5)
-
-    # on decent: deploy leg, retract panel
-    if deploy_legs_on_entry:
-        deploy_legs(conn)
-    if retract_palens_on_entry:
-        retract_panels(conn)
-
-    # wait for burn
-    last_ut = ut()
-    while True:
-        a100 = available_thrust() / mass()
-        lower_bound = vessel.bounding_box(vessel.surface_reference_frame)[0][0]
-
-        landing_alt = altitude() + lower_bound
-        if guided_landing:
-            landing_alt = max(landing_alt, vessel.orbit.body.surface_height(target_lat, target_lon) + lower_bound)
-
-        sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
-        burn_time = burn_prediction(terminal_speed, a100)
-        burn_lead_time = sec_until_impact - burn_time
-
-        if burn_lead_time and burn_lead_time > (ut() - last_ut)*1.5+2:
-            if burn_lead_time > 30:
-                dialog.status_update("Warp for decereration burn - 30sec: {: 5.3f}".format(burn_lead_time))
-                conn.space_center.warp_to(ut() + burn_lead_time - 30)
-                time.sleep(5)
-            else:
-                dialog.status_update("Wait for decereration burn: {: 5.3f} sec; ut: {: 5.3f}".format(burn_lead_time, ut()))
-        else:
-            break
-        last_ut = ut()
-        time.sleep(0.1)
-
-    # on decent: deploy leg, retract panel
-    if deploy_legs_on_decent:
-        deploy_legs(conn)
-    if retract_palens_on_decent:
-        retract_panels(conn)
-
-    # kill horizontal velocity again
-    kill_horizontal_velocity(conn, use_sas)
-
-    # Main decent loop
-    last_sas_mode = vessel.control.sas_mode
-    while True:
-        a100 = available_thrust() / mass()
-        bounding_box = vessel.bounding_box(vessel.surface_reference_frame)
-        lower_bound = bounding_box[0][0]
-        landing_alt = altitude() + lower_bound
-
-        sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
-        burn_time = burn_prediction(terminal_speed, a100)
-        burn_lead_time = sec_until_impact - burn_time
-
-        dialog.status_update("Alt: {: 5.3f}, Speed {: 5.3f} m/s (H: {: 5.3f}, V: {: 5.3f}), "\
-                             "a: {: 5.3f}, g: {: 5.3f}, "\
-                             "landing in: {: 5.3f} sec, burn lead time: {: 5.3f} sec"\
-                             "".format(altitude(), speed(), horizontal_speed(), vertical_speed(),
-                                       a100, surface_gravity,
-                                       sec_until_impact, burn_lead_time)
-                            )
-
-        if use_sas:
-            if (horizontal_speed() > 0.5 or horizontal_speed() / speed() > 0.9) and last_sas_mode != vessel.control.sas_mode.retrograde:
-                vessel.control.sas_mode = vessel.control.sas_mode.retrograde
-                last_sas_mode = vessel.control.sas_mode.retrograde
-            elif last_sas_mode != vessel.control.sas_mode.radial:
-                vessel.control.sas_mode = vessel.control.sas_mode.radial
-                last_sas_mode = vessel.control.sas_mode.radial
-        else:
-            # TODO: auto-pilot
-            pass
-
-        if landing_alt >= landing_speed/2 or not max([False] + [ l.is_grounded for l in vessel.parts.legs ]):
-            target_speed = max(landing_speed, landing_alt / 5)
-            throttle = max(0, min(1.0, (( speed() - target_speed ) + surface_gravity) / a100))
-            vessel.control.throttle = throttle
-        else:
-            vessel.control.sas_mode.radial
-            vessel.control.throttle = 0
-            break
-        last_ut = ut()
-
-    dialog.status_update("Landed")
-
-    # keep sas on for a bit to maintain landing stability
-    time.sleep(5)
-
-    if use_sas:
-        vessel.control.sas = False
-    else:
-        vessel.auto_pilot.disengage() 
-
-    if auto_stage:
-        unset_autostaging()
-
-    return
 
 def landing_target_steering(vessel: Vessel, target_lat: float, target_lon: float) -> (float, float):
     bref = vessel.orbit.body.reference_frame
@@ -382,75 +385,6 @@ def landing_target_steering(vessel: Vessel, target_lat: float, target_lon: float
     bearing = r2d(math.atan2(y, x)) % 360
 
     return distance_error, bearing
-
-def landing_target_steering2(conn: Client, vessel: Vessel, target_lat: float, target_lon: float):
-    Dir = (0.0,-1.0,0.0) 
-    Dir = conn.space_center.transform_direction(Dir, vessel.surface_velocity_reference_frame, vessel.surface_reference_frame)
-    Dir = numpy.asarray(Dir)
-    Dir[0] = 0
-    Dir = numpy.multiply(Dir, 1.0/numpy.linalg.norm(Dir))
-    Dir = (Dir[0], Dir[1], Dir[2])
-
-    bref = vessel.orbit.body.reference_frame
-    br = vessel.orbit.body.equatorial_radius
-
-    vespos = vessel.position(bref)
-    tpos = vessel.orbit.body.surface_position(target_lat, target_lon, bref)
-
-    predpos = landing_prediction(vessel)
-    pred_lat, pred_lon = latlon(predpos)
-
-    cur_lat = vessel.flight(bref).latitude
-    cur_lon = vessel.flight(bref).longitude
-    
-    # Latitudes and Longitudes of all relative positions
-    pred_lat = d2r(pred_lat)
-    pred_lon = d2r(pred_lon)
-    cur_lat = d2r(cur_lat)
-    cur_lon = d2r(cur_lon)
-    target_lat = d2r(target_lat)
-    target_lon = d2r(target_lon)
-    
-    # The following calculates the deviation of the landing position from the line connecting the vessel and the target
-    t_p = db2(target_lat, target_lon, pred_lat, pred_lon, br)
-    p_v = db2(pred_lat, pred_lon, cur_lat, cur_lon, br)
-    t_v = db2(target_lat, target_lon, cur_lat, cur_lon, br)
-
-    vespos = [vespos[0],vespos[2],vespos[1]]
-    vespos = numpy.multiply(vespos, br/numpy.linalg.norm(vespos))
-    n_vec = numpy.cross(vespos, tpos)
-    n_vec = numpy.divide(n_vec, numpy.linalg.norm(n_vec))
-    xp = r2d(numpy.arcsin(numpy.dot(n_vec, numpy.divide(predpos,numpy.linalg.norm(predpos)))))
-
-    # Modifies steering direction to minimise the deviation calculated above
-    deviation = predir*xp
-    Dir_Bearing = numpy.asarray(Dir)
-    Dir_Bearing[0] = 0
-    Dir_Bearing = numpy.divide(Dir_Bearing, numpy.linalg.norm(Dir_Bearing))
-    r_ang = d2r(100*deviation)
-    
-    r_ang = [[1, 0, 0],[0, numpy.cos(r_ang), -numpy.sin(r_ang)],[0, numpy.sin(r_ang), numpy.cos(r_ang)]]
-    r_ang = numpy.transpose(r_ang)
-    Dir_Bearing = numpy.dot(r_ang, Dir_Bearing)
-
-    new_Dir = (Dir_Bearing[0],Dir_Bearing[1], Dir_Bearing[2])
-    
-    error_ang = SAS.vang(numpy.asarray(new_Dir), numpy.asarray(vessel.flight(vessel.surface_reference_frame).direction))
-    
-    if error_ang<=0.3745:
-        vessel.control.throttle = 1.0
-        vessel.control.rcs = False
-    else:
-        vessel.control.throttle = 0.0
-        vessel.control.rcs = True
-    lim = r2d((p_v-t_v)/br)
-
-    # condition to slightly overshoot the target to account for drag and landing maneuvers
-    if lim>0.06 and lim<0.07 and (t_p-t_v)<=0: # change these conditions depending on trajectory
-        vessel.control.throttle = 0.0
-        vessel.control.rcs = True
-    
-    time.sleep(0.005)
 
 def kill_horizontal_velocity(conn: Client, use_sas: bool = True):
     vessel = conn.space_center.active_vessel
@@ -509,6 +443,9 @@ def deploy_legs(conn: Client):
     for leg in vessel.parts.legs:
         if leg.deployable:
             leg.deployed = True    
+
+def is_grounded(vessel: Vessel):
+    return max([False] + [ l.is_grounded for l in vessel.parts.legs ])
 
 if __name__ == "__main__":
     import os
