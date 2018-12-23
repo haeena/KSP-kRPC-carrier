@@ -9,6 +9,7 @@ from typing import Union, NewType, Callable
 
 Vessel = NewType("Vessel", object)
 Body = NewType("Body", object)
+Orbit = NewType("Orbit", object)
 Node = NewType("Node", object)
 
 from scripts.utils.utils import *
@@ -48,6 +49,7 @@ def vertical_landing(conn: Client,
         return nothing, return when procedure finished
     """
     vessel = conn.space_center.active_vessel
+    body = vessel.orbit.body
 
     ## check retrograde and radial hold capability
     use_sas = False
@@ -62,12 +64,12 @@ def vertical_landing(conn: Client,
 
     # Set up dialog and stream
     dialog = StatusDialog(conn)
-    surface_gravity = vessel.orbit.body.surface_gravity
-    has_atmosphere = vessel.orbit.body.has_atmosphere
-    atmosphere_depth = vessel.orbit.body.atmosphere_depth
+    surface_gravity = body.surface_gravity
+    has_atmosphere = body.has_atmosphere
+    atmosphere_depth = body.atmosphere_depth
 
     ref_frame = conn.space_center.ReferenceFrame.create_hybrid(
-        position=vessel.orbit.body.reference_frame,
+        position=body.reference_frame,
         rotation=vessel.surface_reference_frame)
     flight = vessel.flight(ref_frame)
 
@@ -115,13 +117,13 @@ def vertical_landing(conn: Client,
             bounding_box = vessel.bounding_box(ref_frame)
             lower_bound = bounding_box[0][0]
 
-            landing_alt = altitude() + lower_bound
+            landing_radius = radius() + lower_bound
             if guided_landing:
-                landing_alt = max(landing_alt, vessel.orbit.body.surface_height(target_lat, target_lon) + lower_bound)
+                landing_radius = max(landing_radius, body.equatorial_radius + body.surface_height(target_lat, target_lon) + lower_bound)
 
-            sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
+            impact_ut, terminal_speed = impact_prediction(vessel.orbit, landing_radius)
             burn_time = burn_prediction(terminal_speed, a100)
-            burn_lead_time = sec_until_impact - burn_time
+            burn_lead_time = impact_ut - burn_time - ut()
             if burn_lead_time < 30:
                 break
 
@@ -165,11 +167,12 @@ def vertical_landing(conn: Client,
 
     # wait for entry
     if has_atmosphere and atmosphere_depth < altitude():
-        warp_to_alt = atmosphere_depth
-        sec_until_entry, terminal_speed = impact_prediction(radius(), warp_to_alt, vertical_speed(), horizontal_speed(), surface_gravity)
+        warp_to_radius = atmosphere_depth + body.equatorial_radius
+        entry_ut, terminal_speed = impact_prediction(vessel.orbit, warp_to_radius)
+        sec_until_entry = entry_ut - ut()
         if sec_until_entry > 30:
-            dialog.status_update("Warp for entry - 30sec: {: 5.3f}".format(sec_until_entry))
-            conn.space_center.warp_to(ut() + sec_until_entry - 30)
+            dialog.status_update("Warp for entry - 5sec: {: 5.3f}".format(sec_until_entry))
+            conn.space_center.warp_to(entry_ut - 5)
             time.sleep(5)
 
     ####
@@ -182,13 +185,13 @@ def vertical_landing(conn: Client,
         a100 = available_thrust() / mass()
         lower_bound = vessel.bounding_box(vessel.surface_reference_frame)[0][0]
 
-        landing_alt = altitude() + lower_bound
+        landing_radius = radius() + lower_bound
         if guided_landing:
-            landing_alt = max(landing_alt, vessel.orbit.body.surface_height(target_lat, target_lon) + lower_bound)
+            landing_radius = max(landing_radius, body.equatorial_radius + body.surface_height(target_lat, target_lon) + lower_bound)
 
-        sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
+        impact_ut, terminal_speed = impact_prediction(vessel.orbit, landing_radius)
         burn_time = burn_prediction(terminal_speed, a100)
-        burn_lead_time = sec_until_impact - burn_time
+        burn_lead_time = impact_ut - burn_time - ut()
 
         if burn_lead_time and burn_lead_time > (ut() - last_ut)*1.5+2:
             if burn_lead_time > 30:
@@ -218,18 +221,18 @@ def vertical_landing(conn: Client,
         a100 = available_thrust() / mass()
         bounding_box = vessel.bounding_box(vessel.surface_reference_frame)
         lower_bound = bounding_box[0][0]
-        landing_alt = altitude() + lower_bound
 
-        sec_until_impact, terminal_speed = impact_prediction(radius(), landing_alt, vertical_speed(), horizontal_speed(), surface_gravity)
+        landing_radius = radius() + lower_bound
+        impact_ut, terminal_speed = impact_prediction(vessel.orbit, landing_radius)
         burn_time = burn_prediction(terminal_speed, a100)
-        burn_lead_time = sec_until_impact - burn_time
+        burn_lead_time = impact_ut - burn_time - ut()
 
         dialog.status_update("Alt: {: 5.3f}, Speed {: 5.3f} m/s (H: {: 5.3f}, V: {: 5.3f}), "\
                              "a: {: 5.3f}, g: {: 5.3f}, "\
                              "landing in: {: 5.3f} sec, burn lead time: {: 5.3f} sec"\
                              "".format(altitude(), speed(), horizontal_speed(), vertical_speed(),
                                        a100, surface_gravity,
-                                       sec_until_impact, burn_lead_time)
+                                       impact_ut - ut(), burn_lead_time)
                             )
 
         if use_sas:
@@ -247,7 +250,7 @@ def vertical_landing(conn: Client,
             throttle = max(0, min(1.0, ( speed_prediction(vessel, vertical_speed(), horizontal_speed(), surface_gravity) - landing_speed) / a100))
             vessel.control.throttle = throttle
         else:
-            vessel.control.throttle = 0
+            vessel.control.throttle = 0.05
 
         if is_grounded(vessel):
             vessel.control.sas_mode.radial
@@ -338,38 +341,36 @@ def landing_prediction(vessel: Vessel) -> (float, float, float):
     
     return R
 
-def impact_prediction(radius: float, altitude: float,
-                      vertical_speed: float, horizontal_speed: float,
-                      surface_gravity: float):
+def impact_prediction(orbit: Orbit, radius: float):
     """impact_prediction
 
     Extended description of function.
 
     Args:
         radius: current radius from center of body 
-        altitude: surface altitude
+        target_altitude: altitude of target position
         vertical_speed: vertical speed
         horizontal_speed: horizontal speed
-        surface_gravity: surface gravity
+        mg: mass of body * gravitational_parameter
 
     Returns:
         return None if not impact
-        return (seconds_until_impact, terminal_speed)
+        return (impact_time, terminal_speed)
     """
-    fall_speed = -vertical_speed
-    downward_acceleration = surface_gravity - horizontal_speed * horizontal_speed / radius
 
-    # do we land?
-    if downward_acceleration < 0:
-        max_fall_distance = -(fall_speed * fall_speed) / (2.0 * downward_acceleration)
-        if max_fall_distance < (altitude + 1.0):
-            return None
+    # radius is not achived
+    if radius < orbit.periapsis or ( orbit.eccentricity < 1 and radius > orbit.apoapsis):
+        return None        
 
-    sec_until_impact = (-fall_speed + math.sqrt(fall_speed * fall_speed + 2.0 * downward_acceleration * altitude)) / downward_acceleration
-
-    vertical_speed_at_impact = fall_speed + sec_until_impact * downward_acceleration
-    impact_speed = math.sqrt(vertical_speed_at_impact * vertical_speed_at_impact + horizontal_speed * horizontal_speed)
-    return sec_until_impact, impact_speed
+    true_anomary1 = orbit.true_anomaly_at_radius(radius)
+    true_anomary2 = 2 * math.pi - true_anomary1
+    time1 = orbit.ut_at_true_anomaly(true_anomary1)
+    time2 = orbit.ut_at_true_anomaly(true_anomary2)
+    
+    if time2 < time1:
+        return time2, orbit.orbital_speed_at(time2)
+    else:
+        return time1, orbit.orbital_speed_at(time2)
 
 def burn_prediction(delta_v: float, acceleration: float):
     return delta_v / acceleration
