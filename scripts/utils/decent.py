@@ -180,31 +180,32 @@ def vertical_landing(conn: Client,
     # landing phase
     vessel.control.rcs = use_rcs_on_landing
 
-    # wait for burn
-    last_ut = ut()
-    while True:
-        a100 = available_thrust() / mass()
-        lower_bound = vessel.bounding_box(vessel.surface_reference_frame)[0][0]
-
-        landing_radius = body.equatorial_radius + lower_bound
-        if guided_landing:
-            landing_radius = max(landing_radius, landing_radius + body.surface_height(target_lat, target_lon))
-
-        impact_ut, terminal_speed = impact_prediction(vessel.orbit, landing_radius)
-        burn_time = burn_prediction(terminal_speed, a100)
-        burn_lead_time = impact_ut - burn_time - ut()
-
-        if burn_lead_time and burn_lead_time > (ut() - last_ut)*1.5+2:
-            if burn_lead_time > 30:
-                dialog.status_update("Warp for decereration burn - 30sec: {: 5.3f}".format(burn_lead_time))
-                conn.space_center.warp_to(ut() + burn_lead_time - 30)
-                time.sleep(5)
-            else:
-                dialog.status_update("Wait for decereration burn: {: 5.3f} sec; ut: {: 5.3f}".format(burn_lead_time, ut()))
-        else:
-            break
+    # warp for burn
+    if not has_atmosphere:
         last_ut = ut()
-        time.sleep(0.1)
+        while True:
+            a100 = available_thrust() / mass()
+            lower_bound = vessel.bounding_box(vessel.surface_reference_frame)[0][0]
+
+            landing_radius = body.equatorial_radius + lower_bound
+            if guided_landing:
+                landing_radius = max(landing_radius, landing_radius + body.surface_height(target_lat, target_lon))
+
+            impact_ut, terminal_speed = impact_prediction(vessel.orbit, landing_radius)
+            burn_time = burn_prediction(terminal_speed, a100)
+            burn_lead_time = impact_ut - burn_time - ut()
+
+            if burn_lead_time and burn_lead_time > (ut() - last_ut)*1.5+2:
+                if burn_lead_time > 30:
+                    dialog.status_update("Warp for decereration burn - 30sec: {: 5.3f}".format(burn_lead_time))
+                    conn.space_center.warp_to(ut() + burn_lead_time - 30)
+                    time.sleep(5)
+                else:
+                    dialog.status_update("Wait for decereration burn: {: 5.3f} sec; ut: {: 5.3f}".format(burn_lead_time, ut()))
+            else:
+                break
+            last_ut = ut()
+            time.sleep(0.1)
 
     # on decent: deploy leg, retract panel
     if deploy_legs_on_decent:
