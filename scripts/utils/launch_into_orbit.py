@@ -113,7 +113,7 @@ def launch_into_orbit(conn: Client,
             vessel.auto_pilot.target_pitch_and_heading(0, ascent_heading)
             try:
                 instant_rate_per_throttle = (apoapsis() - raise_apoapsis_last_apoapsis) / ((ut() - raise_apoapsis_last_ut) * raise_apoapsis_last_throttle)
-                instant_rate_per_throttle = max(1.0, instant_rate_per_throttle)
+                instant_rate_per_throttle = min(1.0, instant_rate_per_throttle)
                 required_appoapsis_height = target_alt - apoapsis()
                 vessel.control.throttle = min(1, max(0.05, required_appoapsis_height / instant_rate_per_throttle))
             except:

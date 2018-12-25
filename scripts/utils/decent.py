@@ -140,7 +140,7 @@ def vertical_landing(conn: Client,
             if vessel.auto_pilot.heading_error < 1:
                 try:
                     instant_rate_per_throttle = (distance_error - last_distance_error) / ((ut() - last_ut) * last_throttle)
-                    instant_rate_per_throttle = max(1.0, instant_rate_per_throttle)
+                    instant_rate_per_throttle = min(1.0, instant_rate_per_throttle)
                     vessel.control.throttle = min(1, max(0.05, distance_error / instant_rate_per_throttle))
                 except:
                     vessel.control.throttle = 0.05
