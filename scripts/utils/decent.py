@@ -112,7 +112,7 @@ def vertical_landing(conn: Client,
         vessel.auto_pilot.engage()
 
         last_ut = ut()
-        last_distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
+        last_distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon, ut())
         last_throttle = 0
 
         while True:
@@ -124,16 +124,17 @@ def vertical_landing(conn: Client,
             if guided_landing:
                 landing_radius = max(landing_radius, landing_radius + body.surface_height(target_lat, target_lon))
 
-            distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
+            distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon, ut())
 
             if has_atmosphere:
                 atmosphere_radius = equatorial_radius + atmosphere_depth
-                entry_ut, entry_speed = time_to_radius(vessel.orbit, atmosphere_radius, ut())
-                entry_lead_time = entry_ut - ut()
                 if atmosphere_depth > altitude() and vertical_speed() < 0:
                     break
 
-                if distance_error < equatorial_radius:
+                entry_ut, entry_speed = time_to_radius(vessel.orbit, atmosphere_radius, ut())
+                entry_lead_time = entry_ut - ut()
+
+                if distance_error < 500:
                     if entry_lead_time > 120:
                         conn.space_center.warp_to(entry_ut - 60)
                     else:
@@ -165,7 +166,7 @@ def vertical_landing(conn: Client,
             
             dialog.status_update("Distance error: {: 5.3f}".format(distance_error))
             if instant_rate_per_throttle:
-                print("ut: {: 5.3f} instant_rate_per_throttle: {: 5.3f}".format(ut(), instant_rate_per_throttle))
+                print("instant_rate_per_throttle {: 5.3f} = (last_distance_error - distance_error) {: 5.3f} / ((ut() - last_ut) {: 5.3f} * last_throttle {: 5.3f})".format(instant_rate_per_throttle, last_distance_error - distance_error, ut() - last_ut, last_throttle))
                 instant_rate_per_throttle = None
 
             last_distance_error = distance_error
@@ -298,70 +299,6 @@ def vertical_landing(conn: Client,
 def speed_prediction(vessel: Vessel, vertical_speed: float, horizontal_speed: float, surface_gravity: float) -> float:
     return math.sqrt((vertical_speed - surface_gravity)**2 + horizontal_speed**2)
 
-def landing_prediction(vessel: Vessel) -> (float, float, float):
-    """landing position prediction
-
-    return prediction of landing position at current body
-
-    Args:
-        vessel: current radius from center of body 
-
-    Returns:
-        return state vector (x, y, z) on body
-    """
-    bref = vessel.orbit.body.reference_frame
-    bmu = vessel.orbit.body.gravitational_parameter
-    br = vessel.orbit.body.equatorial_radius
-
-    r = vessel.position(bref)
-    v = vessel.velocity(bref) 
-
-    r = [r[0], r[2], r[1]]    
-    v = [v[0], v[2], v[1]]
-
-    # calculate orbital elements from state vectors
-    h = np.cross(r, v)
-    e = np.subtract(np.divide(np.cross(v, h), bmu), np.divide(r, norm(r)))    
-    ec = norm(e)
-
-    n = np.transpose([-h[1], h[0], 0])
-
-    if np.dot(r, v)>=0:
-        nu = np.arccos(np.dot(e, r)/(ec*norm(r)))
-    else:
-        nu = 2*np.pi - np.arccos(np.dot(e, r)/(ec*norm(r)))
-
-    i = np.arccos(h[2]/norm(h))
-    if n[1]>=0:
-        RAAN = np.arccos(n[0]/norm(n))
-    else:
-        RAAN = 2*np.pi - np.arccos(n[0]/norm(n))
-
-    if e[2]>=0:
-        w = np.arccos(np.dot(n, e)/(ec*norm(n)))
-    else:
-        w = 2*np.pi - np.arccos(np.dot(n, e)/(ec*norm(n)))
-
-    a = (2.0/norm(r) - (norm(v)**2.0)/bmu)**-1
-    
-    elem = [a, ec, i, w, RAAN, nu]
-    
-    # calculate new true anomaly when distance to centre of body is equatorial radius on the orbit
-    elem[5] = -np.arccos(((1.0-elem[1]**2.0)*(elem[0]/br)-1.0)/elem[1])
-    
-    # convert back to state vectors
-    X = np.cos(elem[4])*np.cos(elem[3]+elem[5]) - np.sin(elem[4])*np.sin(elem[3]+elem[5])*np.cos(elem[2])
-    Y = np.sin(elem[4])*np.cos(elem[3]+elem[5]) + np.cos(elem[4])*np.sin(elem[3]+elem[5])*np.cos(elem[2])
-    Z = np.sin(elem[2])*np.sin(elem[3]+elem[5])
-    
-    X *= br
-    Y *= br
-    Z *= br
-    
-    R = [X, Y, Z]
-    
-    return R
-
 def time_to_radius(orbit: Orbit, radius: float, ut: float):
     """time to radius
 
@@ -428,12 +365,18 @@ def impact_prediction(radius: float, target_altitude: float,
 def burn_prediction(delta_v: float, acceleration: float):
     return delta_v / acceleration
 
-def landing_target_steering(vessel: Vessel, target_lat: float, target_lon: float) -> (float, float):
+def landing_target_steering(vessel: Vessel, target_lat: float, target_lon: float, ut: float) -> (float, float):
     br = vessel.orbit.body.equatorial_radius
-    predpos = landing_prediction(vessel)
-    pred_lat, pred_lon = latlon(predpos)
+    bref = vessel.orbit.body.reference_frame
+
+    target_pos = vessel.orbit.body.surface_position(target_lat, target_lon, bref)
     
-    distance_error, bearing = bearing_and_distance_between_coords(pred_lat, pred_lon, target_lat, target_lon, br)
+    landing_time, terminal_speed = time_to_radius(vessel.orbit, br, ut)
+    landing_pos = vessel.orbit.position_at(landing_time, bref)
+    land_lat, land_lon = latlon(landing_pos)
+    
+    distance_error = np.linalg.norm(np.subtract(target_pos, landing_pos)) # zatu
+    bearing = bearing_between_coords(land_lat, land_lon, target_lat, target_lon)
 
     return distance_error, bearing
 
