@@ -48,7 +48,7 @@ def distance_between_coords(lat1: float, lon1: float, lat2: float, lon2: float, 
     dlon = lon2 - lon1
     dlat = lat2 - lat1
     a = np.sin(0.5*dlat)**2.0 + np.cos(lat1)*np.cos(lat2)*(np.sin(0.5*dlon)**2.0)
-    c = 2.0*np.arcsin(min(1.0, np.sqrt(a)))
+    c = 2.0*np.arctan2(np.sqrt(a), np.sqrt(1-a))
     distance = body_radius * c
     return distance
 
