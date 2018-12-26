@@ -65,6 +65,7 @@ def vertical_landing(conn: Client,
     # Set up dialog and stream
     dialog = StatusDialog(conn)
     surface_gravity = body.surface_gravity
+    equatorial_radius = body.equatorial_radius
     has_atmosphere = body.has_atmosphere
     atmosphere_depth = body.atmosphere_depth
 
@@ -104,6 +105,7 @@ def vertical_landing(conn: Client,
     # pre-entry phase
     vessel.control.rcs = use_rcs_on_entry
 
+    instant_rate_per_throttle = None
     # pre-entry guidance
     if guided_landing:
         vessel.auto_pilot.reference_frame = ref_frame
@@ -118,36 +120,53 @@ def vertical_landing(conn: Client,
             bounding_box = vessel.bounding_box(vessel.surface_reference_frame)
             lower_bound = bounding_box[0][0]
 
-            landing_radius = body.equatorial_radius + lower_bound
+            landing_radius = equatorial_radius + lower_bound
             if guided_landing:
                 landing_radius = max(landing_radius, landing_radius + body.surface_height(target_lat, target_lon))
 
-            impact_ut, terminal_speed = time_to_radius(vessel.orbit, landing_radius, ut())
-            burn_time = burn_prediction(terminal_speed, a100)
-            burn_lead_time = impact_ut - burn_time - ut()
-            if burn_lead_time < 5:
-                break
-
-            if atmosphere_depth > apoapsis_altitude():
-                break
-
             distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon)
+
+            if has_atmosphere:
+                atmosphere_radius = equatorial_radius + atmosphere_depth
+                entry_ut, entry_speed = time_to_radius(vessel.orbit, atmosphere_radius, ut())
+                entry_lead_time = entry_ut - ut()
+                if atmosphere_depth > altitude() and vertical_speed() < 0:
+                    break
+
+                if distance_error < equatorial_radius:
+                    if entry_lead_time > 120:
+                        conn.space_center.warp_to(entry_ut - 60)
+                    else:
+                        break
+            else:
+                impact_ut, terminal_speed = time_to_radius(vessel.orbit, landing_radius, ut())
+                burn_time = burn_prediction(terminal_speed, a100)
+                burn_ut = impact_ut - burn_time
+                burn_lead_time = burn_ut - ut()
+                if burn_lead_time < 30:
+                    break
+                if distance_error < 500:
+                    if burn_lead_time > 10:
+                        conn.space_center.warp_to(burn_ut - 60)
+                    else:
+                        break
+
             vessel.auto_pilot.target_pitch_and_heading(0, bearing)
 
-            if distance_error < 500:
-                break
-            
             if vessel.auto_pilot.heading_error < 1:
                 try:
-                    instant_rate_per_throttle = (distance_error - last_distance_error) / ((ut() - last_ut) * last_throttle)
-                    instant_rate_per_throttle = min(1.0, instant_rate_per_throttle)
-                    vessel.control.throttle = min(1, max(0.05, distance_error / instant_rate_per_throttle))
+                    instant_rate_per_throttle = (last_distance_error - distance_error) / ((ut() - last_ut) * last_throttle)
+                    instant_rate_per_throttle = max(1.0, instant_rate_per_throttle)
+                    vessel.control.throttle = min(1.0, max(0.05, distance_error / instant_rate_per_throttle))
                 except:
                     vessel.control.throttle = 0.05
             else:
                 vessel.control.throttle = 0
             
             dialog.status_update("Distance error: {: 5.3f}".format(distance_error))
+            if instant_rate_per_throttle:
+                print("ut: {: 5.3f} instant_rate_per_throttle: {: 5.3f}".format(ut(), instant_rate_per_throttle))
+                instant_rate_per_throttle = None
 
             last_distance_error = distance_error
             last_throttle = vessel.control.throttle
@@ -168,7 +187,7 @@ def vertical_landing(conn: Client,
 
     # wait for entry
     if has_atmosphere and atmosphere_depth < altitude():
-        warp_to_radius = atmosphere_depth + body.equatorial_radius
+        warp_to_radius = atmosphere_depth + equatorial_radius
         entry_ut, terminal_speed = time_to_radius(vessel.orbit, warp_to_radius, ut())
         sec_until_entry = entry_ut - ut()
         if sec_until_entry > 30:
@@ -186,7 +205,7 @@ def vertical_landing(conn: Client,
         a100 = available_thrust() / mass()
         lower_bound = vessel.bounding_box(vessel.surface_reference_frame)[0][0]
 
-        landing_radius = body.equatorial_radius + lower_bound
+        landing_radius = equatorial_radius + lower_bound
         landing_altitude = altitude() + lower_bound
         if guided_landing:
             landing_radius = max(landing_radius, landing_radius + body.surface_height(target_lat, target_lon))
@@ -327,7 +346,7 @@ def landing_prediction(vessel: Vessel) -> (float, float, float):
     
     elem = [a, ec, i, w, RAAN, nu]
     
-    # calculate new true anomaly when distance to centre of body is equation radius on the orbit
+    # calculate new true anomaly when distance to centre of body is equatorial radius on the orbit
     elem[5] = -np.arccos(((1.0-elem[1]**2.0)*(elem[0]/br)-1.0)/elem[1])
     
     # convert back to state vectors
@@ -410,35 +429,11 @@ def burn_prediction(delta_v: float, acceleration: float):
     return delta_v / acceleration
 
 def landing_target_steering(vessel: Vessel, target_lat: float, target_lon: float) -> (float, float):
-    bref = vessel.orbit.body.reference_frame
     br = vessel.orbit.body.equatorial_radius
-
-    # vespos = vessel.position(bref)
-    # tpos = vessel.orbit.body.surface_position(target_lat, target_lon, bref)
     predpos = landing_prediction(vessel)
-
     pred_lat, pred_lon = latlon(predpos)
-    cur_lat = vessel.flight(bref).latitude
-    cur_lon = vessel.flight(bref).longitude
     
-    target_lat = d2r(target_lat)
-    target_lon = d2r(target_lon)
-    pred_lat = d2r(pred_lat)
-    pred_lon = d2r(pred_lon)
-    cur_lat = d2r(cur_lat)
-    cur_lon = d2r(cur_lon)
-
-    lat_error = target_lat - pred_lat
-    lon_error = target_lon - pred_lon
-
-    # calcurate great circule distance using Haversine formula
-    a = math.sin(lat_error/2) * math.sin(lat_error/2) + math.cos(target_lat) * math.cos(pred_lat) * math.sin(lon_error/2) * math.sin(lon_error/2)
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-    distance_error = br * c
-
-    y = math.sin(lon_error) * math.cos(target_lat)
-    x = math.cos(pred_lat) * math.sin(target_lat) - math.sin(pred_lat) * math.cos(target_lat) * math.cos(lon_error)
-    bearing = r2d(math.atan2(y, x)) % 360
+    distance_error, bearing = bearing_and_distance_between_coords(pred_lat, pred_lon, target_lat, target_lon, br)
 
     return distance_error, bearing
 

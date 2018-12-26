@@ -12,35 +12,102 @@ def dot(v1, v2):
     v2_u = unit_vector(v2)
     return np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)
 
-def r2d(x):
-    """radian to degree
-    """
-    return x*180.0/np.pi
-    
-def d2r(x):
-    """ degree to radian
-    """
-    return x*np.pi/180.0
+def angle_between_coords(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """calculate radian between 2 (lat,lon) coords in radian
 
-def db2(lat1, lon1, lat2, lon2, body_radius):
-    """calculate distance between 2 (lat,lon) coords
+    Extended description of function.
+
+    Args:
+        lat1: latitude of first coordination
+        lon1: longtitude of first coordination
+        lat2: latitude of first coordination
+        lon2: longtitude of first coordination
+
+    Returns:
+        radian between two coordinations
     """
+    lat1, lon1, lat2, lon2 = np.deg2rad((lat1, lon1, lat2, lon2))
+    return np.arccos(np.sin(lat1)*np.sin(lat2) + np.cos(lat1)*np.cos(lat2) * np.cos(abs(lon1 - lon2)))
+
+def distance_between_coords(lat1: float, lon1: float, lat2: float, lon2: float, body_radius: float) -> float:
+    """calculate distance between 2 (lat,lon) coords
+
+    Extended description of function.
+
+    Args:
+        lat1: latitude of first coordination
+        lon1: longtitude of first coordination
+        lat2: latitude of second coordination
+        lon2: longtitude of second coordination
+        body_radius: radius of body
+
+    Returns:
+        distance between two coordinations
+    """ 
+    lat1, lon1, lat2, lon2 = np.deg2rad((lat1, lon1, lat2, lon2))
     dlon = lon2 - lon1
     dlat = lat2 - lat1
     a = np.sin(0.5*dlat)**2.0 + np.cos(lat1)*np.cos(lat2)*(np.sin(0.5*dlon)**2.0)
     c = 2.0*np.arcsin(min(1.0, np.sqrt(a)))
-    d = body.equatorial_radius*c
-    return d
-    
-def latlon(x):
-    """function to calculate (lat, long) from state vectors
-    """
-    lon = np.arctan2(x[1],x[0])
-    p = (x[0]**2.0 + x[1]** 2.0)**0.5
-    lat = np.arctan2(x[2],p)
-    lat = r2d(lat)
-    lon = r2d(lon)
-    return np.array((lat, lon))
+    distance = body_radius * c
+    return distance
+
+def bearing_between_coords(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """calculate initial bearing between 2 (lat,lon) coords
+
+    Extended description of function.
+
+    Args:
+        lat1: latitude of first coordination
+        lon1: longtitude of first coordination
+        lat2: latitude of second coordination
+        lon2: longtitude of second coordination
+        body_radius: radius of body
+
+    Returns:
+        initial bearing from first to second (degree)
+    """ 
+    lat1, lon1, lat2, lon2 = np.deg2rad((lat1, lon1, lat2, lon2))
+    dlon = lon2 - lon1
+    y = math.sin(dlon) * math.cos(lat2)
+    x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
+    bearing = np.rad2deg(np.arctan2(y, x)) % 360
+    return bearing
+
+def bearing_and_distance_between_coords(lat1: float, lon1: float, lat2: float, lon2: float, body_radius: float) -> ():
+    """calculate distance and initial bearing between 2 (lat,lon) coords
+
+    Extended description of function.
+
+    Args:
+        lat1: latitude of first coordination
+        lon1: longtitude of first coordination
+        lat2: latitude of second coordination
+        lon2: longtitude of second coordination
+        body_radius: radius of body
+
+    Returns:
+        distance between two coordinations
+        initial bearing from first to second (degree)
+    """ 
+    return distance_between_coords(lat1, lon1, lat2, lon2, body_radius), bearing_between_coords(lat1, lon1, lat2, lon2)
+
+def latlon(vector):
+    """function to calculate (lat, lon) from state vectors (x,y,z)
+
+    Extended description of function.
+
+    Args:
+        vector: (x,y,z) state vector
+
+    Returns:
+        lattitude in radian
+        longtitude in radian
+    """ 
+    lon = np.arctan2(vector[1],vector[0])
+    p = (vector[0]**2.0 + vector[1]** 2.0)**0.5
+    lat = np.arctan2(vector[2] ,p)
+    return lat, lon
 
 def angle_between(v1, v2):
     """Calculate angle between two vector.
