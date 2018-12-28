@@ -69,8 +69,9 @@ def bearing_between_coords(lat1: float, lon1: float, lat2: float, lon2: float) -
     """ 
     lat1, lon1, lat2, lon2 = np.deg2rad((lat1, lon1, lat2, lon2))
     dlon = lon2 - lon1
-    y = math.sin(dlon) * math.cos(lat2)
-    x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
+
+    y = np.sin(dlon) * np.cos(lat2)
+    x = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
     bearing = np.rad2deg(np.arctan2(y, x)) % 360
     return bearing
 
@@ -101,12 +102,13 @@ def latlon(vector):
         vector: (x,y,z) state vector
 
     Returns:
-        lattitude in radian
-        longtitude in radian
+        lattitude in degree
+        longtitude in degree
     """ 
-    lon = np.arctan2(vector[1],vector[0])
-    p = (vector[0]**2.0 + vector[1]** 2.0)**0.5
-    lat = np.arctan2(vector[2] ,p)
+    lon = np.arctan2(vector[2], vector[0])
+    p = (vector[0]**2.0 + vector[2]** 2.0)**0.5
+    lat = np.arctan2(vector[1], p)
+    lat, lon = np.rad2deg((lat, lon))
     return lat, lon
 
 def angle_between(v1, v2):
