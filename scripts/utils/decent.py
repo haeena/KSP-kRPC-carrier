@@ -322,6 +322,12 @@ def time_to_radius(orbit: Orbit, radius: float, ut: float):
     time1 = orbit.ut_at_true_anomaly(true_anomary1)
     time2 = orbit.ut_at_true_anomaly(true_anomary2)
     
+    # KSP GetUTforTrueAnomaly may have a bug?
+    while time1 - orbit.period > ut:
+        time1 = time1 - orbit.period
+    while time2 - orbit.period > ut:
+        time2 = time2 - orbit.period
+
     if time2 < time1:
         return time2, orbit.orbital_speed_at(time2 - ut)
     else:
