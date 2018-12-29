@@ -164,7 +164,7 @@ def vertical_landing(conn: Client,
             else:
                 vessel.control.throttle = 0
             
-            dialog.status_update("Distance error: {: 5.3f}".format(distance_error))
+            dialog.status_update("Distance error: {: 5.3f}, bearing: {: 5.3f}".format(distance_error, bearing))
             if instant_rate_per_throttle:
                 print("instant_rate_per_throttle {: 5.3f} = (last_distance_error - distance_error) {: 5.3f} / ((ut() - last_ut) {: 5.3f} * last_throttle {: 5.3f})".format(instant_rate_per_throttle, last_distance_error - distance_error, ut() - last_ut, last_throttle))
                 instant_rate_per_throttle = None
@@ -368,12 +368,14 @@ def burn_prediction(delta_v: float, acceleration: float):
 def landing_target_steering(vessel: Vessel, target_lat: float, target_lon: float, ut: float) -> (float, float):
     br = vessel.orbit.body.equatorial_radius
     bref = vessel.orbit.body.reference_frame
+    brotate = vessel.orbit.body.rotational_speed
 
     target_pos = vessel.orbit.body.surface_position(target_lat, target_lon, bref)
     
     landing_time, terminal_speed = time_to_radius(vessel.orbit, br, ut)
     landing_pos = vessel.orbit.position_at(landing_time, bref)
     land_lat, land_lon = latlon(landing_pos)
+    land_lon = clamp_2pi(land_lon + brotate * (landing_time - ut) ) - math.pi
     
     distance_error = np.linalg.norm(np.subtract(target_pos, landing_pos)) # zatu
     bearing = bearing_between_coords(land_lat, land_lon, target_lat, target_lon)
