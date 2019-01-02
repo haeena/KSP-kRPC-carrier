@@ -105,14 +105,14 @@ def vertical_landing(conn: Client,
     # pre-entry phase
     vessel.control.rcs = use_rcs_on_entry
 
-    instant_rate_per_throttle = None
     # pre-entry guidance
     if guided_landing:
         vessel.auto_pilot.reference_frame = ref_frame
         vessel.auto_pilot.engage()
 
         last_ut = ut()
-        last_distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon, ut())
+        bearing, distance, landing_position_error = landing_target_steering(vessel, target_lat, target_lon, ut())
+        last_landing_position_error = landing_position_error
         last_throttle = 0
 
         while True:
@@ -124,7 +124,7 @@ def vertical_landing(conn: Client,
             if guided_landing:
                 landing_radius = max(landing_radius, landing_radius + body.surface_height(target_lat, target_lon))
 
-            distance_error, bearing = landing_target_steering(vessel, target_lat, target_lon, ut())
+            bearing, distance, landing_position_error = landing_target_steering(vessel, target_lat, target_lon, ut())
 
             if has_atmosphere:
                 atmosphere_radius = equatorial_radius + atmosphere_depth
@@ -134,7 +134,7 @@ def vertical_landing(conn: Client,
                 entry_ut, entry_speed = time_to_radius(vessel.orbit, atmosphere_radius, ut())
                 entry_lead_time = entry_ut - ut()
 
-                if distance_error < 500:
+                if landing_position_error/distance < 0.05:
                     if entry_lead_time > 120:
                         conn.space_center.warp_to(entry_ut - 60)
                     else:
@@ -146,7 +146,7 @@ def vertical_landing(conn: Client,
                 burn_lead_time = burn_ut - ut()
                 if burn_lead_time < 30:
                     break
-                if distance_error < 500:
+                if landing_position_error/distance < 0.05:
                     if burn_lead_time > 10:
                         conn.space_center.warp_to(burn_ut - 60)
                     else:
@@ -156,20 +156,20 @@ def vertical_landing(conn: Client,
 
             if vessel.auto_pilot.heading_error < 1:
                 try:
-                    instant_rate_per_throttle = (last_distance_error - distance_error) / ((ut() - last_ut) * last_throttle)
+                    landing_pos_corrected = last_landing_position_error - landing_position_error
+                    dt = ut() - last_ut
+                    instant_rate_per_throttle = landing_pos_corrected / dt / last_throttle
                     instant_rate_per_throttle = max(1.0, instant_rate_per_throttle)
-                    vessel.control.throttle = min(1.0, max(0.05, distance_error / instant_rate_per_throttle))
+                    vessel.control.throttle = min(1.0, max(0.05, landing_position_error / instant_rate_per_throttle))
                 except:
                     vessel.control.throttle = 0.05
             else:
                 vessel.control.throttle = 0
             
-            dialog.status_update("Distance error: {: 5.3f}, bearing: {: 5.3f}".format(distance_error, bearing))
-            if instant_rate_per_throttle:
-                print("instant_rate_per_throttle {: 5.3f} = (last_distance_error - distance_error) {: 5.3f} / ((ut() - last_ut) {: 5.3f} * last_throttle {: 5.3f})".format(instant_rate_per_throttle, last_distance_error - distance_error, ut() - last_ut, last_throttle))
-                instant_rate_per_throttle = None
+            dialog.status_update(f"landing_position error: {landing_position_error: 5.3f}, bearing: {bearing: 5.3f}")
 
-            last_distance_error = distance_error
+            last_ut = ut()
+            last_landing_position_error = landing_position_error
             last_throttle = vessel.control.throttle
 
         vessel.control.throttle = 0
@@ -271,7 +271,7 @@ def vertical_landing(conn: Client,
             pass
 
         if burn_lead_time < 0.1:
-            throttle = max(0, min(1.0, ( speed_prediction(vessel, vertical_speed(), horizontal_speed(), surface_gravity) - landing_speed) / a100))
+            throttle = max(0, min(1.0, ( abs(speed_prediction(vessel, vertical_speed(), horizontal_speed(), surface_gravity)) - landing_speed) / a100))
             vessel.control.throttle = throttle
 
         if is_grounded(vessel):
@@ -371,11 +371,12 @@ def impact_prediction(radius: float, target_altitude: float,
 def burn_prediction(delta_v: float, acceleration: float):
     return delta_v / acceleration
 
-def landing_target_steering(vessel: Vessel, target_lat: float, target_lon: float, ut: float) -> (float, float):
+def landing_target_steering(vessel: Vessel, target_lat: float, target_lon: float, ut: float) -> (float, float, float):
     br = vessel.orbit.body.equatorial_radius
     bref = vessel.orbit.body.reference_frame
     brotate = vessel.orbit.body.rotational_speed
 
+    current_pos = vessel.position(bref)
     target_pos = vessel.orbit.body.surface_position(target_lat, target_lon, bref)
     
     landing_time, terminal_speed = time_to_radius(vessel.orbit, br, ut)
@@ -383,10 +384,11 @@ def landing_target_steering(vessel: Vessel, target_lat: float, target_lon: float
     land_lat, land_lon = latlon(landing_pos)
     land_lon = clamp_2pi(land_lon + brotate * (landing_time - ut) ) - math.pi
     
-    distance_error = np.linalg.norm(np.subtract(target_pos, landing_pos)) # zatu
     bearing = bearing_between_coords(land_lat, land_lon, target_lat, target_lon)
+    distance = np.linalg.norm(np.subtract(current_pos, landing_pos))
+    error = np.linalg.norm(np.subtract(target_pos, landing_pos))
 
-    return distance_error, bearing
+    return bearing, distance, error
 
 def kill_horizontal_velocity(conn: Client, use_sas: bool = True):
     vessel = conn.space_center.active_vessel
