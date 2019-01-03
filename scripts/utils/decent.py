@@ -241,7 +241,6 @@ def vertical_landing(conn: Client,
         kill_horizontal_velocity(conn, use_sas)
 
     # Main decent loop
-    pid = PIDController(ut=ut(), Kp=0.1, Ki=0.001, Kd=0.1)
     last_sas_mode = vessel.control.sas_mode
     while True:
         a100 = available_thrust() / mass()
@@ -274,9 +273,8 @@ def vertical_landing(conn: Client,
             # TODO: auto-pilot
             pass
 
-        vessel.control.throttle = pid.update(input=vertical_speed(), set_point=-landing_speed, ut=ut(), min_output=0, max_output=1)
-        # throttle = max(0, min(1.0, ( abs(speed_prediction(vessel, vertical_speed(), horizontal_speed(), surface_gravity)) - landing_speed) / a100))
-        # vessel.control.throttle = throttle
+        throttle = max(0, min(1.0, (-vertical_speed() + surface_gravity - landing_speed) / a100))
+        vessel.control.throttle = throttle
 
         if is_grounded(vessel):
             vessel.control.sas_mode.radial
@@ -353,17 +351,21 @@ def impact_prediction(radius: float, target_altitude: float,
         ut: current ut
 
     Returns:
-        return None if not impact
+        return (None, None) if not impact
         return (impact_ut, terminal_speed)
     """
     fall_speed = -vertical_speed
     downward_acceleration = surface_gravity - horizontal_speed * horizontal_speed / radius
 
+    # do we already landed?
+    if target_altitude < 0:
+        return None, None
+
     # do we land?
     if downward_acceleration < 0:
         max_fall_distance = -(fall_speed * fall_speed) / (2.0 * downward_acceleration)
         if max_fall_distance < (target_altitude + 1.0):
-            return None
+            return None, None
 
     sec_until_impact = (-fall_speed + math.sqrt(fall_speed * fall_speed + 2.0 * downward_acceleration * target_altitude)) / downward_acceleration
 
