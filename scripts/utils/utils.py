@@ -135,3 +135,36 @@ def clamp_2pi(x):
         x -= (2 * math.pi)
 
     return x
+
+class PIDController(object):
+    """ Robust, single parameter, proportional-integral-derivative controller
+        http://brettbeauregard.com/blog/2011/04/improving-the-beginners-pid-introduction/ """
+
+    def __init__(self, ut:float = 0, Kp:float = 1, Ki:float = 0, Kd:float = 0):
+        self.set_params(Kp = Kp, Ki = Ki, Kd = Kd)
+        self.Ti = 0
+        self.last_ut = ut
+        self.last_error = 0
+
+    def set_params(self, Kp:float = None, Ki:float = None, Kd:float = None):
+        if Kp != None:
+            self.Kp = Kp
+        if Ki != None:
+            self.Ki = Ki
+        if Kd != None:
+            self.Kd = Kd
+
+    def update(self, input, set_point, ut, min_output, max_output):
+        d_ut = ut - self.last_ut
+        error = set_point - input
+        d_error = error - self.last_error
+        self.Ti += self.Ki * error * d_ut
+        self.Ti = np.maximum(min_output, np.minimum(max_output, self.Ti))
+        if d_ut != 0:
+            output = self.Kp * error + self.Ti - self.Kd * d_error / d_ut
+        else:
+            output = self.Kp * error + self.Ti
+        output = np.maximum(min_output, np.minimum(max_output, output))
+        self.last_error = error
+        self.latst_ut = ut
+        return output

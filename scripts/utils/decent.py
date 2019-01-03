@@ -132,6 +132,8 @@ def vertical_landing(conn: Client,
                     break
 
                 entry_ut, entry_speed = time_to_radius(vessel.orbit, atmosphere_radius, ut())
+                if entry_ut == None:
+                    break
                 entry_lead_time = entry_ut - ut()
 
                 if landing_position_error/distance < 0.05:
@@ -239,6 +241,7 @@ def vertical_landing(conn: Client,
         kill_horizontal_velocity(conn, use_sas)
 
     # Main decent loop
+    pid = PIDController(ut=ut(), Kp=0.1, Ki=0.001, Kd=0.1)
     last_sas_mode = vessel.control.sas_mode
     while True:
         a100 = available_thrust() / mass()
@@ -260,9 +263,10 @@ def vertical_landing(conn: Client,
                             )
 
         if use_sas:
-            if (horizontal_speed() > 0.5 and speed() > 1.0) and last_sas_mode != vessel.control.sas_mode.retrograde:
-                vessel.control.sas_mode = vessel.control.sas_mode.retrograde
-                last_sas_mode = vessel.control.sas_mode.retrograde
+            if (horizontal_speed() > 0.5 and speed() > 1.0):
+                if last_sas_mode != vessel.control.sas_mode.retrograde:
+                    vessel.control.sas_mode = vessel.control.sas_mode.retrograde
+                    last_sas_mode = vessel.control.sas_mode.retrograde
             elif last_sas_mode != vessel.control.sas_mode.radial:
                 vessel.control.sas_mode = vessel.control.sas_mode.radial
                 last_sas_mode = vessel.control.sas_mode.radial
@@ -270,9 +274,9 @@ def vertical_landing(conn: Client,
             # TODO: auto-pilot
             pass
 
-        if burn_lead_time < 0.1:
-            throttle = max(0, min(1.0, ( abs(speed_prediction(vessel, vertical_speed(), horizontal_speed(), surface_gravity)) - landing_speed) / a100))
-            vessel.control.throttle = throttle
+        vessel.control.throttle = pid.update(input=vertical_speed(), set_point=-landing_speed, ut=ut(), min_output=0, max_output=1)
+        # throttle = max(0, min(1.0, ( abs(speed_prediction(vessel, vertical_speed(), horizontal_speed(), surface_gravity)) - landing_speed) / a100))
+        # vessel.control.throttle = throttle
 
         if is_grounded(vessel):
             vessel.control.sas_mode.radial
@@ -315,7 +319,7 @@ def time_to_radius(orbit: Orbit, radius: float, ut: float):
 
     # radius is not achived
     if radius < orbit.periapsis or ( orbit.eccentricity < 1 and radius > orbit.apoapsis):
-        return None        
+        return None, None  
 
     true_anomary1 = orbit.true_anomaly_at_radius(radius)
     true_anomary2 = 2 * math.pi - true_anomary1
