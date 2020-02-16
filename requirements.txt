@@ -4,7 +4,6 @@
 #
 #    pip-compile --output-file requirements.txt requirements.in
 #
-appnope==0.1.0            # via ipython
 astroid==1.6.5            # via pylint
 astropy==3.0.3            # via poliastro
 backcall==0.1.0           # via ipython
@@ -43,7 +42,7 @@ mccabe==0.6.1             # via pylint
 mistune==0.8.3            # via nbconvert
 nbconvert==5.3.1          # via jupyter, notebook
 nbformat==4.4.0           # via ipywidgets, nbconvert, notebook, plotly
-notebook==5.5.0           # via jupyter, widgetsnbextension
+notebook==5.7.8           # via jupyter, widgetsnbextension
 numba==0.38.1             # via poliastro
 numpy==1.14.4             # via astropy, matplotlib, numba, pandas, poliastro, scipy
 pandas==0.23.0            # via poliastro
@@ -54,6 +53,7 @@ pickleshare==0.7.4        # via ipython
 pip-tools==2.0.2
 plotly==2.7.0             # via poliastro
 poliastro==0.9.1
+prometheus-client==0.7.1  # via notebook
 prompt-toolkit==1.0.15    # via ipython, jupyter-console
 protobuf==3.5.2.post1     # via krpc
 ptyprocess==0.5.2         # via pexpect, terminado
