@@ -1,0 +1,5 @@
+[flake8]
+exclude = .git, .tox, .venv, .eggs, build, dist, docs
+max-line-length = 120
+ignore = W391, W503
+select = B,C,E,F,W,B9
