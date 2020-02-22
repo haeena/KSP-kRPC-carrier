@@ -1,13 +1,15 @@
-import time
 import math
-from functools import reduce
+import time
 
 from krpc.client import Client
-from scripts.utils.utils import *
-from scripts.utils.status_dialog import StatusDialog
 from scripts.utils.autostage import set_autostaging, unset_autostaging
+from scripts.utils.status_dialog import StatusDialog
+from scripts.utils.utils import angle_between
 
-def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0) -> None:
+
+def execute_next_node(
+    conn: Client, auto_stage: bool = True, stop_stage: int = 0
+) -> None:
     vessel = conn.space_center.active_vessel
     nodes = vessel.control.nodes
 
@@ -15,22 +17,24 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
         return
     node = nodes[0]
 
-    ## check manuever hold capability
+    # check manuever hold capability
     use_sas = False
     try:
         vessel.control.sas = True
         vessel.control.sas_mode = vessel.control.sas_mode.maneuver
         use_sas = True
-    except:
-        pass        
+    except Exception:
+        pass
     vessel.control.sas = False
 
-    ## setup dialog and streams
+    # setup dialog and streams
     dialog = StatusDialog(conn)
-    ut = conn.add_stream(getattr, conn.space_center, 'ut')
-    direction = conn.add_stream(getattr, vessel.flight(node.reference_frame), 'direction')
+    ut = conn.add_stream(getattr, conn.space_center, "ut")
+    direction = conn.add_stream(
+        getattr, vessel.flight(node.reference_frame), "direction"
+    )
 
-    ## setup autostaging
+    # setup autostaging
     if auto_stage:
         set_autostaging(conn, stop_stage=stop_stage)
 
@@ -38,7 +42,7 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     F = vessel.available_thrust
     Isp = vessel.specific_impulse * 9.82
     m0 = vessel.mass
-    m1 = m0 / math.exp(node.delta_v/Isp)
+    m1 = m0 / math.exp(node.delta_v / Isp)
     flow_rate = F / Isp
     burn_time = (m0 - m1) / flow_rate
 
@@ -47,7 +51,7 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     if use_sas:
         vessel.control.sas = True
         vessel.control.sas_mode = vessel.control.sas_mode.maneuver
-        while angle_between(direction(), (0,1,0)) > 0.5/180 * math.pi:
+        while angle_between(direction(), (0, 1, 0)) > 0.5 / 180 * math.pi:
             time.sleep(0.1)
     else:
         vessel.auto_pilot.engage()
@@ -57,7 +61,7 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
 
     # Wait until burn
     dialog.status_update("Waiting until burn time")
-    burn_ut = node.ut - (burn_time/2.0)
+    burn_ut = node.ut - (burn_time / 2.0)
     lead_time = 5
     conn.space_center.warp_to(burn_ut - lead_time)
 
@@ -69,7 +73,7 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
     vessel.control.throttle = 1.0
 
     remaining_delta_v = conn.add_stream(getattr, node, "remaining_delta_v")
-    min_delta_v = remaining_delta_v()        
+    min_delta_v = remaining_delta_v()
 
     state_fine_tuning = False
     point_passed = False
@@ -78,7 +82,7 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
         if a100 == 0:
             if auto_stage:
                 time.sleep(0.05)
-                continue    
+                continue
             else:
                 break
         throttle = max(0.05, min(1.0, remaining_delta_v() / a100))
@@ -105,9 +109,11 @@ def execute_next_node(conn: Client, auto_stage: bool = True, stop_stage: int = 0
 
     return
 
+
 if __name__ == "__main__":
     import os
     import krpc
+
     krpc_address = os.environ["KRPC_ADDRESS"]
-    conn = krpc.connect(name='execute node', address=krpc_address)
+    conn = krpc.connect(name="execute node", address=krpc_address)
     execute_next_node(conn)
