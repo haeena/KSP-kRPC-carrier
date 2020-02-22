@@ -107,7 +107,7 @@ def set_autostaging(
         remove_staging_events()
         if not is_autostaging:
             return
-        dialog.status_update("Staging: stage {}".format(current_stage - 1))
+        dialog.status_update(f"Staging: stage {current_stage - 1}")
 
         # check if stage triggered by somewhere else
         if current_stage == vessel.control.current_stage:

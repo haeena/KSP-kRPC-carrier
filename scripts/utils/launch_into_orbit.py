@@ -162,6 +162,7 @@ def launch_into_orbit(
                 exit_atm_stage < current_stage
                 and altitude() >= atomosphere_depth
             ):
+                dialog.status_update(f"Staging: stage {current_stage - 1}")
                 vessel.control.activate_next_stage()
                 if exit_atm_stage == current_stage - 1:
                     set_ascent_autostaging(
