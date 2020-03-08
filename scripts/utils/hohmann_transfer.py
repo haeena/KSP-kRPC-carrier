@@ -140,11 +140,13 @@ def hohmann_transfer(
     Returns:
         return Node
     """
-    body = vessel.orbit.body
+    vo = vessel.orbit
+    to = target.orbit
+    body = vo.body
     GM = body.gravitational_parameter
-    r1 = vessel.orbit.radius_at(node_ut)
-    SMA_i = vessel.orbit.semi_major_axis
-    SMA_t = (vessel.orbit.apoapsis + target.orbit.apoapsis) / 2
+    r1 = vo.radius_at(node_ut)
+    SMA_i = vo.semi_major_axis
+    SMA_t = (vo.semi_major_axis + to.semi_major_axis) / 2
     v1 = (GM * ((2 / r1) - (1 / SMA_i))) ** 0.5
     v2 = (GM * ((2 / r1) - (1 / (SMA_t)))) ** 0.5
     dv = v2 - v1
