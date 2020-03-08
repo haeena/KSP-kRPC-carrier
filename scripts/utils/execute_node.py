@@ -57,7 +57,8 @@ def execute_next_node(
         vessel.auto_pilot.engage()
         vessel.auto_pilot.reference_frame = node.reference_frame
         vessel.auto_pilot.target_direction = (0, 1, 0)
-        vessel.auto_pilot.wait()
+        while angle_between(direction(), (0, 1, 0)) > 1 / 180 * math.pi:
+            time.sleep(0.1)
 
     # Wait until burn
     dialog.status_update("Waiting until burn time")
